@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07051a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Neon Trails</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="fonts/orbitron.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="pads"></div>
+
+  <button id="pauseBtn" class="icon-btn hidden" aria-label="Pause">❚❚</button>
+
+  <!-- Main menu -->
+  <section id="menu" class="screen">
+    <div class="logo">
+      <h1><span class="l1">NEON</span><span class="l2">TRAILS</span></h1>
+      <p class="tag">Don't cross the light.</p>
+    </div>
+    <div class="profile-chip" id="profileChip"></div>
+    <div class="menu-buttons">
+      <button class="btn primary" data-go="local">Party Mode <small>Offline · 2–4 on one device</small></button>
+      <button class="btn secondary" data-go="online">Online <small>Play friends anywhere</small></button>
+      <div class="row">
+        <button class="btn ghost" data-go="howto">How to play</button>
+        <button class="btn ghost" data-go="settings">Settings</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Local party setup -->
+  <section id="local" class="screen hidden">
+    <h2>Party Mode</h2>
+    <p class="sub">Tap a slot to switch between Player, Bot and Off.</p>
+    <div id="slots" class="slots"></div>
+    <div class="row">
+      <button class="btn ghost" data-go="menu">Back</button>
+      <button class="btn primary" id="startLocal">Start</button>
+    </div>
+  </section>
+
+  <!-- Online -->
+  <section id="online" class="screen hidden">
+    <h2>Online</h2>
+    <label class="field">Your name <input id="nameInput" maxlength="12" autocomplete="off" placeholder="Pilot"></label>
+    <button class="btn primary" id="quickBtn">Quick Match <small>Jump into a game</small></button>
+    <button class="btn secondary" id="createBtn">Create Private Room <small>Invite friends with a code</small></button>
+    <div class="join-row">
+      <input id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+      <button class="btn secondary" id="joinBtn">Join</button>
+    </div>
+    <p class="status" id="onlineStatus"></p>
+    <button class="btn ghost" data-go="menu">Back</button>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="screen hidden">
+    <h2 id="lobbyTitle">Room</h2>
+    <div class="code-box" id="codeBox"></div>
+    <p class="sub" id="lobbyHint"></p>
+    <div id="lobbyPlayers" class="slots"></div>
+    <div class="row">
+      <button class="btn ghost" id="leaveBtn">Leave</button>
+      <button class="btn secondary" id="addBotBtn">+ Bot</button>
+      <button class="btn primary" id="startOnline">Start</button>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="howto" class="screen hidden">
+    <h2>How to play</h2>
+    <ul class="howto">
+      <li><b>Steer</b> your light-cycle with <b>◀</b> and <b>▶</b>. It never stops moving.</li>
+      <li>Every trail is deadly — walls, rivals and your own.</li>
+      <li>Trails have <b>gaps</b> now and then. Slip through them!</li>
+      <li>Each time someone crashes, every survivor scores a point.</li>
+      <li>First to the target score with a 2-point lead wins.</li>
+    </ul>
+    <div id="puList" class="pu-list"></div>
+    <p class="sub">Keyboard: P1 A/D · P2 ←/→ · P3 J/L · P4 4/6</p>
+    <button class="btn ghost" data-go="menu">Back</button>
+  </section>
+
+  <!-- Settings -->
+  <section id="settings" class="screen hidden">
+    <h2>Settings</h2>
+    <label class="toggle"><input type="checkbox" id="setSound"> Sound effects</label>
+    <label class="toggle"><input type="checkbox" id="setMusic"> Music</label>
+    <label class="toggle"><input type="checkbox" id="setHaptics"> Vibration</label>
+    <label class="toggle"><input type="checkbox" id="setQuality"> High quality glow</label>
+    <label class="field">Online server <input id="setServer" placeholder="default" autocomplete="off"></label>
+    <div class="stats" id="stats"></div>
+    <button class="btn ghost" data-go="menu">Back</button>
+  </section>
+
+  <!-- Pause -->
+  <section id="pause" class="screen hidden overlay">
+    <h2>Paused</h2>
+    <button class="btn primary" id="resumeBtn">Resume</button>
+    <button class="btn ghost" id="quitBtn">Quit to menu</button>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="screen hidden overlay">
+    <h2 id="resultTitle">Winner</h2>
+    <div id="podium" class="podium"></div>
+    <div id="reward" class="reward"></div>
+    <div class="row">
+      <button class="btn ghost" id="menuBtn">Menu</button>
+      <button class="btn primary" id="againBtn">Play again</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <div id="rotate" class="rotate-hint">Rotate your device ⟳</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

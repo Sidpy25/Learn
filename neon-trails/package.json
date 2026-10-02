@@ -1,0 +1,28 @@
+{
+  "name": "neon-trails",
+  "version": "1.0.0",
+  "description": "Neon Trails \u2014 a neon light-cycle party game. Offline pass-and-play on one device, or online multiplayer.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node test/sim.test.mjs && node test/server.test.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "test:browser": "node test/browser-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@fontsource/orbitron": "^5.0.0"
+  }
+}
