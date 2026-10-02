@@ -1,8 +1,13 @@
 // Thin WebSocket client for online play.
 import { SERVER_URL } from '../config.js';
 
+// The Android app (Capacitor) has no game server of its own, so it uses SERVER_URL.
+function isNativeApp() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+
 export function serverUrl(override) {
-  const base = (override || SERVER_URL || '').trim();
+  const base = (override || (isNativeApp() || location.protocol === 'file:' ? SERVER_URL : '') || '').trim();
   if (base) {
     const u = base.replace(/^http/, 'ws');
     return /^wss?:\/\//.test(u) ? u : 'wss://' + u;

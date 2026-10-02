@@ -1,5 +1,5 @@
-// Address of the online game server, e.g. 'wss://neon-trails.example.com/ws'.
-// Leave empty when the server also hosts the web client (same origin).
-// The Android app MUST set this to your deployed server before publishing.
-// Players can also override it under Settings → Server.
-export const SERVER_URL = '';
+// Online game server used by the Android app.
+// The web version always talks to the server it was loaded from, so local
+// testing with `npm start` keeps working. Players can also override this
+// under Settings → Online server.
+export const SERVER_URL = 'wss://neon-trails-5z6h.onrender.com/ws';
