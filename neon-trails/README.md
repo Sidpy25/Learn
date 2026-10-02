@@ -45,6 +45,11 @@ Keyboard controls: P1 `A/D`, P2 `←/→`, P3 `J/L`, P4 `4/6`. Press `Esc` to pa
 
 ## Put the online server on the internet
 
+**Currently live:** https://neon-trails-5z6h.onrender.com (Render free plan, so it sleeps after about 15 minutes idle and takes up to a minute to wake). The Android app connects to `wss://neon-trails-5z6h.onrender.com/ws`.
+
+On Render: a Web Service from this repository with **Dockerfile Path** `./neon-trails/Dockerfile` and **Docker Build Context Directory** `./neon-trails`. It redeploys automatically on every push to `main`.
+
+
 You need any host that supports WebSockets. The included `Dockerfile` works on most of them. For example, with **Google Cloud Run**:
 
 ```bash
@@ -54,10 +59,10 @@ gcloud run deploy neon-trails --source . --region asia-south1 --allow-unauthenti
 
 Keep it to **one instance**: rooms are stored in memory, so players in the same room must be on the same server. Render, Railway and Fly.io also work (`npm start`, port taken from `$PORT`).
 
-Then put the server address in `client/config.js`:
+Then put the server address in `client/config.js` (the Android app uses it; the web version always uses the server it was loaded from):
 
 ```js
-export const SERVER_URL = 'wss://neon-trails-xxxxx.a.run.app/ws';
+export const SERVER_URL = 'wss://YOUR-SERVER/ws';
 ```
 
 The deployed server also hosts a playable web version at its URL. It can be installed as a PWA and works offline.
