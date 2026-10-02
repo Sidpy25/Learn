@@ -8,7 +8,7 @@ const defaults = {
   wins: 0,
   bestStreak: 0,
   streak: 0,
-  settings: { sound: true, music: true, haptics: true, quality: 1, server: '' },
+  settings: { sound: true, music: true, haptics: true, quality: 1, server: '', touch: 'stick' },
 };
 
 export function loadProfile() {

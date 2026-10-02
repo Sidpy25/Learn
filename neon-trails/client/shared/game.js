@@ -92,7 +92,8 @@ export class Game {
 
   setInput(i, turn) {
     const p = this.players[i];
-    if (p && !p.bot) p.turn = Math.max(-1, Math.min(1, turn | 0));
+    // -1..1; joystick play sends values in between for gentle corrections.
+    if (p && !p.bot) p.turn = Math.max(-1, Math.min(1, Number(turn) || 0));
   }
 
   setBot(i, bot) {
