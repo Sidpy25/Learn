@@ -298,37 +298,55 @@ input:focus { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0, 240, 255, 
   .pad:not(.pad-full) { display: none; }
 }
 
-/* Floating joystick for a lone touch player. */
-.pad-stick { inset: 0; pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }
+/* Circular joysticks. The zone is the touch area; the base is what you see. */
+.stick-zone { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; width: 46vw; height: 62vh; max-width: 340px; max-height: 300px; }
+.stick-solo, .stick-bl { left: 0; bottom: 0; }
+.stick-br { right: 0; bottom: 0; }
+.stick-tl { left: 0; top: 44px; transform: rotate(180deg); }
+.stick-tr { right: 0; top: 44px; transform: rotate(180deg); }
 .stick-base {
-  position: absolute; left: 0; top: 0;
-  width: 112px; height: 112px; margin: -56px 0 0 -56px;
+  position: absolute;
+  width: clamp(104px, 30vmin, 140px); aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--c) 70%, transparent);
-  background: radial-gradient(circle, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent);
-  opacity: 0; transition: opacity 0.12s;
+  border: 2px solid color-mix(in srgb, var(--c) 65%, transparent);
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 16%, transparent) 0%, rgba(8, 6, 24, 0.55) 72%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 40%, transparent), inset 0 0 18px color-mix(in srgb, var(--c) 20%, transparent);
+  opacity: 0.75; transition: opacity 0.1s, box-shadow 0.1s;
   pointer-events: none;
 }
-.stick-base.on { opacity: 1; }
+/* Top pads are rotated 180°, so anchor them to the opposite side to land in their corner. */
+.stick-solo .stick-base, .stick-bl .stick-base, .stick-tr .stick-base { left: max(22px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom)); }
+.stick-br .stick-base, .stick-tl .stick-base { right: max(22px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); }
+/* Smaller pads when several players share the screen. */
+.stick-bl .stick-base, .stick-br .stick-base, .stick-tl .stick-base, .stick-tr .stick-base { width: clamp(92px, 25vmin, 120px); }
+.stick-base.on { opacity: 1; box-shadow: 0 0 26px var(--c), inset 0 0 22px color-mix(in srgb, var(--c) 30%, transparent); }
+.stick-base .tick { position: absolute; width: 0; height: 0; border: 5px solid transparent; opacity: 0.7; }
+.t-n { left: 50%; top: 6px; margin-left: -5px; border-bottom-color: var(--c) !important; }
+.t-s { left: 50%; bottom: 6px; margin-left: -5px; border-top-color: var(--c) !important; }
+.t-w { top: 50%; left: 6px; margin-top: -5px; border-right-color: var(--c) !important; }
+.t-e { top: 50%; right: 6px; margin-top: -5px; border-left-color: var(--c) !important; }
 .stick-knob {
   position: absolute; left: 50%; top: 50%;
-  width: 48px; height: 48px; margin: -24px 0 0 -24px;
+  width: 42%; aspect-ratio: 1; transform: translate(0, 0);
+  translate: -50% -50%;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--c) 55%, white 10%);
-  box-shadow: 0 0 20px var(--c);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 40%, white), var(--c) 70%);
+  box-shadow: 0 0 18px var(--c);
+  transition: transform 0.08s ease-out;
 }
+.stick-base.on .stick-knob { transition: none; }
 .stick-hint {
-  position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 10px 18px; border-radius: 14px;
-  background: rgba(10, 6, 30, 0.7); border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
-  color: var(--muted); font-size: 12px; font-family: system-ui, sans-serif; text-align: center;
+  position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: calc(max(20px, env(safe-area-inset-bottom)) + clamp(104px, 30vmin, 140px) + 12px);
+  max-width: 190px; padding: 8px 12px; border-radius: 12px;
+  background: rgba(10, 6, 30, 0.75); border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  color: #fff; font-size: 12px; font-family: system-ui, sans-serif; line-height: 1.35;
   pointer-events: none; transition: opacity 0.4s;
   animation: hintPulse 1.6s ease-in-out infinite;
 }
-.stick-hint b { color: #fff; font-family: var(--font); font-size: 14px; letter-spacing: 0.06em; }
 .stick-hint.gone { opacity: 0; animation: none; }
+.stick-tag { position: absolute; bottom: calc(max(20px, env(safe-area-inset-bottom)) + clamp(104px, 30vmin, 140px) + 6px); font-size: 10px; letter-spacing: 0.1em; color: var(--c); }
+.stick-bl .stick-tag, .stick-tr .stick-tag { left: max(22px, env(safe-area-inset-left)); }
+.stick-br .stick-tag, .stick-tl .stick-tag { right: max(22px, env(safe-area-inset-right)); }
 @keyframes hintPulse { 50% { box-shadow: 0 0 18px color-mix(in srgb, var(--c) 50%, transparent); } }
 .toggle select {
   margin-left: auto; font: inherit; font-size: 12px; color: #fff;

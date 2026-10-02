@@ -112,11 +112,11 @@ function startLocal() {
   mode = 'local';
   paused = false;
   enterGame(game.meta());
-  controls.setup(localHumans, localHumans.length === 1 && isTouch(), touchOpts());
+  controls.setup(localHumans, touchOpts());
 }
 
 function touchOpts() {
-  return { style: profile.settings.touch, getHeading: (i) => (view && view.p[i] ? view.p[i][2] : null) };
+  return { touch: isTouch(), style: profile.settings.touch, getHeading: (i) => (view && view.p[i] ? view.p[i][2] : null) };
 }
 
 function isTouch() {
@@ -236,6 +236,7 @@ function handleEvents(events) {
   const audible = mode !== 'attract';
   renderer.handleEvents(events, audible ? sfx : null);
   for (const e of events) {
+    if (e.type === 'round') controls.reset();
     if (e.type === 'death' && audible && profile.settings.haptics) {
       const mine = mode === 'online' ? e.i === online.you : localHumans.some((h) => h.player === e.i);
       haptic(mine ? 180 : 40);
@@ -277,6 +278,7 @@ function frame(now) {
     }
   }
   countdownBeeps();
+  renderer.aims = mode === 'attract' ? [] : controls.aims();
   renderer.draw(view, paused ? 0 : dt);
 
   // Auto-lower quality on slow devices.
@@ -357,7 +359,7 @@ function onNetMessage(m) {
       view = null;
       enterGame(m.meta);
       const me = m.meta.players[m.you];
-      controls.setup([{ player: m.you, color: me.color, name: me.name }], isTouch(), touchOpts());
+      controls.setup([{ player: m.you, color: me.color, name: me.name }], touchOpts());
       toast(`You are ${COLOR_NAMES[COLORS.indexOf(me.color)] || 'in'} — good luck!`);
       break;
     }

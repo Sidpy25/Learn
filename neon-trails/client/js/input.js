@@ -1,12 +1,11 @@
-// Keyboard + multi-touch controls. Each local human gets a LEFT and RIGHT
-// button pair in their own corner of the screen (top players' pads are
-// rotated so friends sitting opposite each other can share one phone).
-// A lone touch player gets a floating joystick instead: drag anywhere and
-// the ride turns toward that screen direction.
-
-const STICK_RADIUS = 56; // px the knob can travel
-const STICK_DEADZONE = 12; // px before a drag counts as steering
-const STICK_GAIN = 2.4; // turn strength per radian of heading error
+// Keyboard + touch controls.
+//
+// Touch: every human gets an always-visible circular joystick. Push the knob
+// toward where you want to go (screen direction) and the ride turns that way;
+// let go and it finishes the turn and carries on in that direction.
+// Party Mode puts one joystick in each player's corner; the top two are
+// rotated so friends sitting opposite each other can share one phone.
+// Classic ◀ ▶ buttons remain available as a setting.
 
 const KEYMAPS = [
   { left: ['KeyA'], right: ['KeyD'] },
@@ -14,152 +13,141 @@ const KEYMAPS = [
   { left: ['KeyJ'], right: ['KeyL'] },
   { left: ['Digit4', 'Numpad4'], right: ['Digit6', 'Numpad6'] },
 ];
+const SOLO_KEYS = { left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'] };
 const CORNERS = ['bl', 'tr', 'tl', 'br'];
 export const KEY_HINTS = ['A / D', '← / →', 'J / L', '4 / 6'];
+
+const STICK_DEADZONE = 0.25; // fraction of the knob's travel before it steers
+const STICK_GAIN = 3.2; // turn strength per radian of heading error
+const ALIGNED = 0.04; // radians: close enough, go straight
 
 export class Controls {
   constructor(root, onChange) {
     this.root = root;
     this.onChange = onChange;
-    this.slots = []; // [{ player, left:Set, right:Set, keyL, keyR }]
-    this.pointers = new Map();
+    this.slots = [];
+    this.getHeading = null;
     this._key = (e) => this.handleKey(e);
     window.addEventListener('keydown', this._key);
     window.addEventListener('keyup', this._key);
   }
 
   // humans: [{ player, color, name }]
-  // single: one touch player using the whole screen ('stick' or 'buttons').
-  // getHeading(player) returns the ride's current angle for joystick steering.
-  setup(humans, single = false, { style = 'stick', getHeading = null } = {}) {
+  // touch: show on-screen controls; style: 'stick' (joystick) or 'buttons'.
+  // getHeading(player) returns the ride's current angle, for joystick steering.
+  setup(humans, { touch = false, style = 'stick', getHeading = null } = {}) {
     this.root.innerHTML = '';
-    this.stick = null;
-    if (single && style === 'stick') {
-      this.setupStick(humans[0], getHeading);
-      return;
-    }
+    this.getHeading = getHeading;
+    const solo = humans.length === 1;
     this.slots = humans.map((h, k) => ({
       player: h.player,
-      keys: single ? { left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'] } : KEYMAPS[k],
+      keys: solo ? SOLO_KEYS : KEYMAPS[k],
       down: { left: new Set(), right: new Set() },
       turn: 0,
+      want: null, // target screen direction from the joystick
     }));
+    if (!touch) return;
     humans.forEach((h, k) => {
-      const pad = document.createElement('div');
-      pad.className = 'pad ' + (single ? 'pad-full' : 'pad-' + CORNERS[k]);
-      pad.style.setProperty('--c', h.color);
-      for (const side of ['left', 'right']) {
-        const b = document.createElement('div');
-        b.className = 'pad-btn pad-' + side;
-        b.innerHTML = side === 'left' ? '<span>◀</span>' : '<span>▶</span>';
-        b.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          b.setPointerCapture?.(e.pointerId);
-          this.slots[k].down[side].add('p' + e.pointerId);
-          b.classList.add('on');
-          this.update(k);
-        });
-        const up = (e) => {
-          this.slots[k].down[side].delete('p' + e.pointerId);
-          if (![...this.slots[k].down[side]].some((x) => x.startsWith('p'))) b.classList.remove('on');
-          this.update(k);
-        };
-        b.addEventListener('pointerup', up);
-        b.addEventListener('pointercancel', up);
-        b.addEventListener('lostpointercapture', up);
-        pad.appendChild(b);
-      }
-      if (!single) {
-        const tag = document.createElement('div');
-        tag.className = 'pad-tag';
-        tag.textContent = h.name;
-        pad.appendChild(tag);
-      }
-      this.root.appendChild(pad);
+      const corner = solo ? 'solo' : CORNERS[k];
+      if (style === 'buttons') this.addButtons(h, k, corner);
+      else this.addStick(h, k, corner, solo);
     });
   }
 
-  setupStick(h, getHeading) {
-    this.slots = [{
-      player: h.player,
-      keys: { left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'] },
-      down: { left: new Set(), right: new Set() },
-      turn: 0,
-    }];
-    const area = document.createElement('div');
-    area.className = 'pad pad-stick';
-    area.style.setProperty('--c', h.color);
-    area.innerHTML = '<div class="stick-base"><div class="stick-knob"></div></div>' +
-      '<div class="stick-hint"><b>Drag anywhere to steer</b>Your ride turns toward your finger</div>';
-    const base = area.querySelector('.stick-base');
-    const knob = area.querySelector('.stick-knob');
-    const hint = area.querySelector('.stick-hint');
-    const st = { player: h.player, getHeading, id: null, ox: 0, oy: 0, want: null, sent: 0 };
-    this.stick = st;
+  addStick(h, k, corner, solo) {
+    const slot = this.slots[k];
+    // The zone is a generous touch area; the visible joystick sits inside it.
+    const zone = document.createElement('div');
+    zone.className = `pad stick-zone stick-${corner}`;
+    zone.style.setProperty('--c', h.color);
+    zone.innerHTML =
+      '<div class="stick-base"><i class="tick t-n"></i><i class="tick t-e"></i><i class="tick t-s"></i><i class="tick t-w"></i>' +
+      '<div class="stick-knob"></div></div>' +
+      (solo ? '<div class="stick-hint">Push the joystick where you want to go</div>' : `<div class="stick-tag">${escapeHtml(h.name)}</div>`);
+    const base = zone.querySelector('.stick-base');
+    const knob = zone.querySelector('.stick-knob');
+    const hint = zone.querySelector('.stick-hint');
+    const flipped = corner === 'tl' || corner === 'tr';
+    let active = null;
 
-    area.addEventListener('pointerdown', (e) => {
-      if (st.id !== null) return; // one steering finger at a time
-      e.preventDefault();
-      area.setPointerCapture?.(e.pointerId);
-      st.id = e.pointerId;
-      st.ox = e.clientX; st.oy = e.clientY;
-      st.want = null;
-      base.style.transform = `translate(${st.ox}px, ${st.oy}px)`;
-      knob.style.transform = 'translate(0px, 0px)';
-      base.classList.add('on');
-      hint.classList.add('gone');
-    });
-    area.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== st.id) return;
-      let dx = e.clientX - st.ox, dy = e.clientY - st.oy;
+    const move = (e) => {
+      const r = base.getBoundingClientRect();
+      const radius = r.width / 2;
+      let dx = e.clientX - (r.left + radius);
+      let dy = e.clientY - (r.top + radius);
       const d = Math.hypot(dx, dy);
-      // Drag past the rim and the base follows, so the thumb never runs out of room.
-      if (d > STICK_RADIUS) {
-        const k = (d - STICK_RADIUS) / d;
-        st.ox += dx * k; st.oy += dy * k;
-        dx = e.clientX - st.ox; dy = e.clientY - st.oy;
-        base.style.transform = `translate(${st.ox}px, ${st.oy}px)`;
-      }
-      knob.style.transform = `translate(${dx}px, ${dy}px)`;
-      st.want = d > STICK_DEADZONE ? Math.atan2(dy, dx) : null;
-    });
-    const up = (e) => {
-      if (e.pointerId !== st.id) return;
-      st.id = null;
-      st.want = null;
-      base.classList.remove('on');
+      const travel = radius * 0.62;
+      if (d > travel) { dx *= travel / d; dy *= travel / d; }
+      // Rotated pads draw in their own (upside-down) coordinates.
+      const lx = flipped ? -dx : dx, ly = flipped ? -dy : dy;
+      knob.style.transform = `translate(${lx}px, ${ly}px)`;
+      if (d > travel * STICK_DEADZONE) slot.want = Math.atan2(dy, dx);
     };
-    area.addEventListener('pointerup', up);
-    area.addEventListener('pointercancel', up);
-    area.addEventListener('lostpointercapture', up);
-    this.root.appendChild(area);
+    zone.addEventListener('pointerdown', (e) => {
+      if (active !== null) return;
+      e.preventDefault();
+      zone.setPointerCapture?.(e.pointerId);
+      active = e.pointerId;
+      base.classList.add('on');
+      if (hint) hint.classList.add('gone');
+      move(e);
+    });
+    zone.addEventListener('pointermove', (e) => { if (e.pointerId === active) move(e); });
+    const up = (e) => {
+      if (e.pointerId !== active) return;
+      active = null;
+      base.classList.remove('on');
+      knob.style.transform = 'translate(0px, 0px)';
+      // Keep slot.want: the ride finishes turning toward the last direction.
+    };
+    zone.addEventListener('pointerup', up);
+    zone.addEventListener('pointercancel', up);
+    zone.addEventListener('lostpointercapture', up);
+    this.root.appendChild(zone);
   }
 
-  // Called every frame: steer the joystick player toward the dragged direction.
-  tick() {
-    const st = this.stick;
-    if (!st) return;
-    const slot = this.slots[0];
-    if (slot.down.left.size || slot.down.right.size) return; // keyboard wins
-    let turn = 0;
-    const heading = st.getHeading ? st.getHeading(st.player) : null;
-    if (st.want !== null && heading != null) {
-      const diff = Math.atan2(Math.sin(st.want - heading), Math.cos(st.want - heading));
-      turn = Math.max(-1, Math.min(1, diff * STICK_GAIN));
-      if (Math.abs(turn) < 0.03) turn = 0;
+  addButtons(h, k, corner) {
+    const pad = document.createElement('div');
+    pad.className = 'pad ' + (corner === 'solo' ? 'pad-full' : 'pad-' + corner);
+    pad.style.setProperty('--c', h.color);
+    for (const side of ['left', 'right']) {
+      const b = document.createElement('div');
+      b.className = 'pad-btn pad-' + side;
+      b.innerHTML = side === 'left' ? '<span>◀</span>' : '<span>▶</span>';
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        b.setPointerCapture?.(e.pointerId);
+        this.slots[k].down[side].add('p' + e.pointerId);
+        b.classList.add('on');
+        this.update(k);
+      });
+      const up = (e) => {
+        this.slots[k].down[side].delete('p' + e.pointerId);
+        if (![...this.slots[k].down[side]].some((x) => x.startsWith('p'))) b.classList.remove('on');
+        this.update(k);
+      };
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointercancel', up);
+      b.addEventListener('lostpointercapture', up);
+      pad.appendChild(b);
     }
-    // Only report real changes, so online play doesn't flood the server.
-    if (Math.abs(turn - st.sent) > 0.06 || (turn === 0 && st.sent !== 0)) {
-      st.sent = turn;
-      slot.turn = turn;
-      this.onChange(st.player, turn);
+    if (corner !== 'solo') {
+      const tag = document.createElement('div');
+      tag.className = 'pad-tag';
+      tag.textContent = h.name;
+      pad.appendChild(tag);
     }
+    this.root.appendChild(pad);
   }
 
   clear() {
     this.slots = [];
-    this.stick = null;
     this.root.innerHTML = '';
+  }
+
+  // New round: forget old joystick targets so nobody steers off on their own.
+  reset() {
+    for (const s of this.slots) s.want = null;
   }
 
   handleKey(e) {
@@ -170,6 +158,7 @@ export class Controls {
         if (s.keys[side].includes(e.code)) {
           if (isDown) s.down[side].add(e.code); else s.down[side].delete(e.code);
           e.preventDefault();
+          s.want = null; // keyboard takes over from the joystick
           this.update(k);
         }
       }
@@ -179,10 +168,35 @@ export class Controls {
   update(k) {
     const s = this.slots[k];
     const turn = (s.down.right.size > 0 ? 1 : 0) - (s.down.left.size > 0 ? 1 : 0);
-    if (turn !== s.turn) {
+    this.send(s, turn);
+  }
+
+  send(s, turn) {
+    // Only report real changes, so online play doesn't flood the server.
+    if (Math.abs(turn - s.turn) > 0.05 || (turn === 0 && s.turn !== 0)) {
       s.turn = turn;
-      if (this.stick) this.stick.sent = turn;
       this.onChange(s.player, turn);
     }
   }
+
+  // Called every frame: steer joystick players toward their chosen direction.
+  tick() {
+    for (const s of this.slots) {
+      if (s.want === null || s.down.left.size || s.down.right.size) continue;
+      const heading = this.getHeading ? this.getHeading(s.player) : null;
+      if (heading == null) continue;
+      const diff = Math.atan2(Math.sin(s.want - heading), Math.cos(s.want - heading));
+      const turn = Math.abs(diff) < ALIGNED ? 0 : Math.max(-1, Math.min(1, diff * STICK_GAIN));
+      this.send(s, turn);
+    }
+  }
+
+  // Joystick targets, for drawing a direction arrow at each ride.
+  aims() {
+    return this.slots.filter((s) => s.want !== null).map((s) => ({ player: s.player, angle: s.want }));
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }

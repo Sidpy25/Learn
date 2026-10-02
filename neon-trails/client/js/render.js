@@ -53,6 +53,7 @@ export class Renderer {
     this.view = null;
     this.banners = [];
     this.rings = [];
+    this.aims = [];
     this.hud = true;
     this.quality = 1;
     this.resize();
@@ -357,6 +358,27 @@ export class Renderer {
       ctx.globalAlpha = 1;
       if (hasFx(fx, 'boost')) {
         this.particles.push({ x: x - Math.cos(a) * 6, y: y - Math.sin(a) * 6, vx: -Math.cos(a) * 60 + (Math.random() - 0.5) * 50, vy: -Math.sin(a) * 60 + (Math.random() - 0.5) * 50, life: 0.35, t: 0, color: '#39ff14', size: 2 });
+      }
+      const aim = this.aims && this.aims.find((m) => m.player === i);
+      if (aim) {
+        // Chevron showing where the joystick is steering; fades once on course.
+        let d = aim.angle - a;
+        d = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+        const alpha = d < 0.06 ? 0 : Math.min(1, 0.45 + d * 2);
+        if (alpha > 0) {
+          const cx = x * s + Math.cos(aim.angle) * 34 * s, cy = y * s + Math.sin(aim.angle) * 34 * s;
+          const k = 13 * s;
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = pl.color;
+          ctx.lineWidth = 4.5 * s;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(aim.angle + 2.4) * k, cy + Math.sin(aim.angle + 2.4) * k);
+          ctx.lineTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(aim.angle - 2.4) * k, cy + Math.sin(aim.angle - 2.4) * k);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
       }
       if (hasFx(fx, 'reverse')) {
         ctx.strokeStyle = '#ff1744';
