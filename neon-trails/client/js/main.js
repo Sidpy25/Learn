@@ -112,7 +112,11 @@ function startLocal() {
   mode = 'local';
   paused = false;
   enterGame(game.meta());
-  controls.setup(localHumans, localHumans.length === 1 && isTouch());
+  controls.setup(localHumans, localHumans.length === 1 && isTouch(), touchOpts());
+}
+
+function touchOpts() {
+  return { style: profile.settings.touch, getHeading: (i) => (view && view.p[i] ? view.p[i][2] : null) };
 }
 
 function isTouch() {
@@ -256,6 +260,7 @@ let slowFrames = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (!paused) controls.tick();
   if ((mode === 'local' || mode === 'attract') && game) {
     if (!paused) {
       acc += dt;
@@ -352,7 +357,7 @@ function onNetMessage(m) {
       view = null;
       enterGame(m.meta);
       const me = m.meta.players[m.you];
-      controls.setup([{ player: m.you, color: me.color, name: me.name }], isTouch());
+      controls.setup([{ player: m.you, color: me.color, name: me.name }], isTouch(), touchOpts());
       toast(`You are ${COLOR_NAMES[COLORS.indexOf(me.color)] || 'in'} — good luck!`);
       break;
     }
@@ -409,6 +414,7 @@ function renderSettings() {
   $('#setMusic').checked = s.music;
   $('#setHaptics').checked = s.haptics;
   $('#setQuality').checked = s.quality >= 1;
+  $('#setTouch').value = s.touch;
   $('#setServer').value = s.server || '';
   $('#stats').innerHTML = `Level ${levelFor(profile.xp)} · ${profile.xp} XP<br>${profile.matches} matches · ${profile.wins} wins · best streak ${profile.bestStreak}`;
 }
@@ -419,6 +425,10 @@ for (const [id, key] of [['#setSound', 'sound'], ['#setMusic', 'music'], ['#setH
     configureAudio(profile.settings);
   });
 }
+$('#setTouch').addEventListener('change', (e) => {
+  profile.settings.touch = e.target.value;
+  saveProfile(profile);
+});
 $('#setQuality').addEventListener('change', (e) => {
   profile.settings.quality = e.target.checked ? 1 : 0;
   saveProfile(profile);

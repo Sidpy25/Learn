@@ -5,7 +5,7 @@ A fast neon light-cycle party game for Android and the web.
 - **Party Mode (offline):** 2–4 friends play on one phone or tablet. Each player gets their own ◀ ▶ buttons in a corner of the screen. Bots can fill empty seats. No internet needed.
 - **Online:** use **Quick Match** to join a game with bots filling empty seats, or create a **private room** and share its 4-letter code with friends.
 
-Your ride never stops moving. Steer left and right, and don't hit a wall or any trail, including your own. Trails have gaps you can slip through. Each time someone crashes, every survivor scores a point. The first player to reach the target score with a 2-point lead wins.
+Your ride never stops moving. Playing alone on a phone, you drag anywhere on the screen and your ride turns toward your finger (classic left/right buttons are an option in Settings). In Party Mode each player has ◀ ▶ buttons. Steer and don't hit a wall or any trail, including your own. Trails have gaps you can slip through. Each time someone crashes, every survivor scores a point. The first player to reach the target score with a 2-point lead wins.
 
 Power-ups: **Boost**, **Ghost** (pass through trails), **Freeze** (slows your rivals), **Fatten** (rivals leave thick trails), **Reverse** (flips your rivals' controls), **Portal** (walls wrap around), **Wipe** (clears the board).
 
