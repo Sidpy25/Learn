@@ -1,0 +1,8 @@
+{
+  "appId": "com.neontrails.game",
+  "appName": "Neon Trails",
+  "webDir": "client",
+  "android": {
+    "backgroundColor": "#07051a"
+  }
+}

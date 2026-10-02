@@ -1,0 +1,299 @@
+:root {
+  --bg: #07051a;
+  --panel: rgba(14, 10, 40, 0.72);
+  --line: rgba(160, 120, 255, 0.35);
+  --cyan: #00f0ff;
+  --pink: #ff2bd6;
+  --gold: #ffe600;
+  --lime: #39ff14;
+  --text: #f3f0ff;
+  --muted: #a99fd6;
+  --font: 'Orbitron', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+canvas#game { position: fixed; inset: 0; display: block; }
+
+.hidden { display: none !important; }
+
+/* ---------- Screens ---------- */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at center, rgba(7, 5, 26, 0.35), rgba(7, 5, 26, 0.85));
+  overflow-y: auto;
+  z-index: 10;
+  animation: fadeIn 0.35s ease;
+}
+.screen.overlay { background: rgba(4, 2, 16, 0.78); backdrop-filter: blur(6px); z-index: 30; }
+
+@keyframes fadeIn { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: none; } }
+
+h2 {
+  margin: 0 0 4px;
+  font-size: clamp(22px, 4vw, 34px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px var(--pink), 0 0 30px rgba(255, 43, 214, 0.5);
+}
+.sub { margin: 0; color: var(--muted); font-size: 12px; text-align: center; letter-spacing: 0.04em; font-family: system-ui, sans-serif; }
+
+/* ---------- Logo ---------- */
+.logo { text-align: center; }
+.logo h1 {
+  margin: 0;
+  font-size: clamp(42px, 10vw, 96px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 0.95;
+  display: flex;
+  flex-direction: column;
+}
+.logo .l1 {
+  color: #fff;
+  text-shadow: 0 0 6px #fff, 0 0 18px var(--cyan), 0 0 40px var(--cyan), 0 0 80px var(--cyan);
+  animation: flicker 6s infinite;
+}
+.logo .l2 {
+  color: #fff;
+  text-shadow: 0 0 6px #fff, 0 0 18px var(--pink), 0 0 40px var(--pink), 0 0 80px var(--pink);
+}
+.logo .tag { margin: 8px 0 0; color: var(--muted); letter-spacing: 0.3em; font-size: 11px; text-transform: uppercase; }
+
+@keyframes flicker {
+  0%, 93%, 100% { opacity: 1; }
+  94% { opacity: 0.4; } 95% { opacity: 1; } 96% { opacity: 0.6; } 97% { opacity: 1; }
+}
+
+@media (max-height: 460px) {
+  .logo h1 { flex-direction: row; gap: 0.3em; font-size: clamp(34px, 7vw, 64px); }
+  .screen { gap: 8px; }
+}
+
+/* ---------- Buttons ---------- */
+.menu-buttons { display: flex; flex-direction: column; gap: 10px; width: min(380px, 100%); }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; width: min(460px, 100%); }
+.row .btn { flex: 1; }
+
+.btn {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s;
+  width: min(380px, 100%);
+  backdrop-filter: blur(4px);
+}
+.btn small { font-size: 10px; letter-spacing: 0.06em; text-transform: none; color: var(--muted); font-family: system-ui, sans-serif; font-weight: 500; }
+.btn:active { transform: scale(0.96); }
+.btn.primary {
+  border-color: var(--cyan);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.45), inset 0 0 14px rgba(0, 240, 255, 0.2);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.btn.secondary { border-color: var(--pink); box-shadow: 0 0 12px rgba(255, 43, 214, 0.35), inset 0 0 12px rgba(255, 43, 214, 0.15); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: 0.4; animation: none; }
+@media (hover: hover) {
+  .btn:hover { border-color: #fff; box-shadow: 0 0 20px rgba(255, 255, 255, 0.35); }
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(0, 240, 255, 0.45), inset 0 0 14px rgba(0, 240, 255, 0.2); }
+  50% { box-shadow: 0 0 26px rgba(0, 240, 255, 0.8), inset 0 0 18px rgba(0, 240, 255, 0.35); }
+}
+
+.icon-btn {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 20;
+  width: 34px; height: 30px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* ---------- Profile chip ---------- */
+.profile-chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 12px;
+}
+.profile-chip .lvl {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: conic-gradient(var(--cyan) var(--p, 0%), rgba(255,255,255,0.1) 0);
+  font-weight: 900; font-size: 12px;
+}
+.profile-chip .lvl span { width: 24px; height: 24px; border-radius: 50%; background: #0b0828; display: grid; place-items: center; }
+.profile-chip .meta { color: var(--muted); font-family: system-ui, sans-serif; }
+
+/* ---------- Slots ---------- */
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: min(620px, 100%); }
+.slot {
+  --c: #fff;
+  border: 2px solid var(--c);
+  border-radius: 16px;
+  padding: 14px 10px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent), inset 0 0 18px color-mix(in srgb, var(--c) 18%, transparent);
+  cursor: pointer;
+  transition: transform 0.12s, opacity 0.2s;
+}
+.slot:active { transform: scale(0.96); }
+.slot.off { opacity: 0.35; box-shadow: none; border-style: dashed; }
+.slot .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--c); margin: 0 auto 8px; box-shadow: 0 0 14px var(--c); }
+.slot .who { font-weight: 900; font-size: 14px; letter-spacing: 0.08em; }
+.slot .kind { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: system-ui, sans-serif; }
+.slot .you { color: var(--c); }
+
+/* ---------- Fields ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; width: min(380px, 100%); }
+input {
+  font-family: var(--font);
+  font-size: 16px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 14px;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+input:focus { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0, 240, 255, 0.4); }
+.join-row { display: flex; gap: 10px; width: min(380px, 100%); }
+.join-row input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 0.4em; text-align: center; font-weight: 900; }
+.join-row .btn { width: auto; }
+.status { min-height: 1.2em; margin: 0; color: var(--gold); font-size: 12px; font-family: system-ui, sans-serif; text-align: center; }
+
+.toggle { display: flex; align-items: center; gap: 12px; width: min(380px, 100%); font-size: 13px; letter-spacing: 0.06em; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.toggle input { width: 20px; height: 20px; accent-color: var(--cyan); }
+.stats { color: var(--muted); font-size: 12px; font-family: system-ui, sans-serif; text-align: center; line-height: 1.6; }
+
+.code-box {
+  font-size: clamp(40px, 9vw, 64px);
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  padding: 6px 10px 6px 30px;
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  color: #fff;
+  text-shadow: 0 0 14px var(--gold);
+  box-shadow: 0 0 22px rgba(255, 230, 0, 0.35);
+}
+
+/* ---------- How to ---------- */
+.howto { max-width: 560px; margin: 0; padding-left: 20px; line-height: 1.6; font-family: system-ui, sans-serif; font-size: 14px; }
+.pu-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; width: min(620px, 100%); }
+.pu { display: flex; gap: 8px; align-items: center; font-size: 12px; font-family: system-ui, sans-serif; padding: 6px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+.pu i { width: 12px; height: 12px; border-radius: 3px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 10px var(--c); flex: none; }
+.pu b { font-family: var(--font); font-size: 11px; letter-spacing: 0.06em; }
+
+/* ---------- Results ---------- */
+.podium { display: flex; flex-direction: column; gap: 8px; width: min(420px, 100%); }
+.podium .pl {
+  --c: #fff;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 14px;
+  border: 1.5px solid var(--c); background: var(--panel);
+  animation: slideIn 0.4s ease both;
+}
+.podium .pl:first-child { box-shadow: 0 0 24px var(--c); transform: scale(1.04); }
+.podium .rank { font-weight: 900; width: 26px; color: var(--c); }
+.podium .nm { flex: 1; font-weight: 700; }
+.podium .sc { font-weight: 900; color: var(--c); }
+@keyframes slideIn { from { opacity: 0; transform: translateY(14px); } }
+.reward { min-height: 1.4em; color: var(--gold); font-size: 13px; text-align: center; text-shadow: 0 0 10px rgba(255, 230, 0, 0.6); }
+
+/* ---------- Touch pads ---------- */
+#pads { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+.pad { position: absolute; display: flex; gap: 10px; pointer-events: none; --c: #fff; }
+.pad-bl { left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); }
+.pad-br { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
+.pad-tl { left: max(10px, env(safe-area-inset-left)); top: 48px; transform: rotate(180deg); }
+.pad-tr { right: max(10px, env(safe-area-inset-right)); top: 48px; transform: rotate(180deg); }
+.pad-btn {
+  pointer-events: auto;
+  width: clamp(58px, 11vmin, 92px);
+  height: clamp(58px, 11vmin, 92px);
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 50%, transparent);
+  display: grid; place-items: center;
+  color: var(--c);
+  font-size: 22px;
+  opacity: 0.55;
+  transition: opacity 0.1s, transform 0.08s, background 0.1s;
+  touch-action: none;
+}
+.pad-btn.on { opacity: 1; transform: scale(0.92); background: color-mix(in srgb, var(--c) 35%, transparent); }
+.pad-tag { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--c); margin-bottom: 4px; letter-spacing: 0.1em; opacity: 0.8; }
+/* Online / single player: whole screen halves are the buttons. */
+.pad-full { inset: 0; gap: 0; }
+.pad-full .pad-btn {
+  flex: 1; height: 100%; border-radius: 0; border: 0; box-shadow: none; background: transparent; opacity: 1;
+  align-items: end; padding-bottom: 18px; font-size: 18px; color: color-mix(in srgb, var(--c) 45%, transparent);
+}
+.pad-full .pad-btn.on { background: linear-gradient(0deg, color-mix(in srgb, var(--c) 12%, transparent), transparent 40%); transform: none; }
+
+/* ---------- Toast / rotate ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px);
+  padding: 10px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold);
+  color: #fff; font-size: 13px; opacity: 0; transition: all 0.3s ease; z-index: 50; pointer-events: none;
+  box-shadow: 0 0 18px rgba(255, 230, 0, 0.35);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.rotate-hint {
+  display: none; position: fixed; inset: 0; z-index: 100; background: var(--bg);
+  place-items: center; font-size: 18px; letter-spacing: 0.1em; text-shadow: 0 0 12px var(--cyan);
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  body.in-game .rotate-hint { display: grid; }
+}
+
+/* Mouse/keyboard devices steer with the keyboard. */
+@media (pointer: fine) {
+  .pad:not(.pad-full) { display: none; }
+}
