@@ -153,3 +153,11 @@ kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;border:1p
 @media (max-width:640px){.viz-root{padding:16px}.tools .badge{display:none}
   .tabs{position:relative;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs::-webkit-scrollbar{display:none}
   .tabs a,.tabs .grp{white-space:nowrap;flex:0 0 auto}.sub{font-size:13px}}
+
+/* inventory flight-dates: keep departure date and flight visible while scrolling sideways */
+#invTbl td:nth-child(-n+2),#invTbl th:nth-child(-n+2){position:sticky;z-index:1;background:var(--surface-1)}
+#invTbl td:first-child,#invTbl th:first-child{left:0;width:122px;min-width:122px;max-width:122px}
+#invTbl td:nth-child(2),#invTbl th:nth-child(2){left:122px;box-shadow:inset -1px 0 0 var(--border)}
+#invTbl thead th:nth-child(-n+2){z-index:2}
+#invTbl tr.diff td:nth-child(-n+2){background:var(--diff-soft)}
+#invTbl tr.changed td:nth-child(-n+2){background:var(--accent-soft)}

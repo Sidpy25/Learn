@@ -232,8 +232,12 @@
       <div class="fields">
         <label class="f">Horizon start<input data-inv="start" type="date"></label>
         <label class="f">Days<input data-inv="days" type="number" min="1" max="120" step="1"></label>
-        <label class="f">Today (for rule expiry)<input data-inv="today" type="date"></label>
+        <label class="f">Today = D0 (also for rule expiry)<input data-inv="today" type="date"></label>
+        <label class="f">&nbsp;<button id="invNow" title="Set Today and the horizon start to the current date">Use current date</button></label>
         <label class="f">Filter sector<input id="invFSector" type="text" placeholder="e.g. RUH-JED or *-CAI"></label>
+        <label class="f">Days to departure<input id="invFDtd" type="text" placeholder="e.g. 0-7 or 3"></label>
+        <label class="f">Departure date from<input id="invFD0" type="date"></label>
+        <label class="f">Departure date to<input id="invFD1" type="date"></label>
         <label class="f">Filter days of week<input id="invFDow" type="text" placeholder="1234567"></label>
         <label class="f">Departure from<input id="invFT0" type="time"></label>
         <label class="f">Departure to<input id="invFT1" type="time"></label>

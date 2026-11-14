@@ -992,9 +992,12 @@ function renderInvInputs(){
   document.querySelectorAll('[data-inv]').forEach(el=>{el.value=ST.inv[el.dataset.inv]??'';el.oninput=el.onchange=()=>{ST.inv[el.dataset.inv]=el.value;save();schedInv();};});
   editTable('ruleIn',ST.inv.rules,RULE_COLS,renderInvInputs,schedInv);
 }
-['invFSector','invFDow','invFT0','invFT1','invFMode','invOnlyModel'].forEach(id=>{const el=$(id);el.oninput=el.onchange=()=>lastInv&&renderInv(lastInv);});
+['invFSector','invFDtd','invFD0','invFD1','invFDow','invFT0','invFT1','invFMode','invOnlyModel'].forEach(id=>{const el=$(id);el.oninput=el.onchange=()=>lastInv&&renderInv(lastInv);});
+$('invNow').onclick=()=>{const t=localToday();ST.inv.today=t;ST.inv.start=t;save();renderInvInputs();schedInv();toast(`Today set to ${t} (D0); the horizon now starts today.`);};
 $('nrFromFilter').onclick=()=>{$('nrSectors').value=$('invFSector').value;$('nrDow').value=$('invFDow').value;$('nrT0').value=$('invFT0').value;$('nrT1').value=$('invFT1').value;
-  $('nrFrom').value=ST.inv.start||'';$('nrTo').value=ST.inv.start?addDaysUI(ST.inv.start,num(ST.inv.days,14)-1):'';};
+  $('nrFrom').value=$('invFD0').value||ST.inv.start||'';$('nrTo').value=$('invFD1').value||(ST.inv.start?addDaysUI(ST.inv.start,num(ST.inv.days,14)-1):'');
+  const dr=dtdRange($('invFDtd').value),t0=ST.inv.today||ST.inv.start;   // a D-range filter becomes the matching dates
+  if(dr&&t0){const a=addDaysUI(t0,dr[0]),b=addDaysUI(t0,dr[1]);if(a>$('nrFrom').value)$('nrFrom').value=a;if(!$('nrTo').value||b<$('nrTo').value)$('nrTo').value=b;}};
 const addDaysUI=(ds,k)=>{const d=new Date(ds+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10);};
 $('nrCreate').onclick=()=>{const v=id=>$(id).value.trim();
   if(!v('nrSectors')&&!v('nrFlights')){$('nrMsg').textContent='Give at least a sector pattern or a flight number.';return;}
@@ -1002,8 +1005,13 @@ $('nrCreate').onclick=()=>{const v=id=>$(id).value.trim();
     from:v('nrFrom'),to:v('nrTo'),dow:v('nrDow'),time_from:v('nrT0'),time_to:v('nrT1'),close:v('nrClose').toUpperCase(),open:v('nrOpen').toUpperCase(),limits:v('nrLimits').toUpperCase(),au:v('nrAu').toUpperCase(),cabin_au:v('nrCabin'),
     bp_pct:v('nrBpPct'),bp_fixed:v('nrBpFix'),owner:v('nrOwner'),expires:v('nrExpires'),note:v('nrNote')};
   ST.inv.rules.unshift(r);save();renderInvInputs();schedInv();$('nrMsg').textContent=`Rule "${r.name}" created at the top of the list.`;setTimeout(()=>$('nrMsg').textContent='',4000);};
-function invFiltered(R){const sec=$('invFSector').value.trim(),dw=$('invFDow').value.replace(/[^1-7]/g,''),t0=E.parseTime($('invFT0').value),t1=E.parseTime($('invFT1').value),md=$('invFMode').value,only=$('invOnlyModel').checked;
-  return R.rows.filter(r=>(!only||r.has_system)&&(!sec||matchSector(sec,r.sector))&&(!dw||dw.includes(r.dow))&&(!md||r.mode===md)&&
+// days to departure from Today (D0); shown as D0, D1, D2 …
+const dtdOf=ds=>Math.round((Date.parse(ds+'T00:00:00Z')-Date.parse(String(ST.inv.today||ST.inv.start||ds)+'T00:00:00Z'))/864e5);
+const dtdTxt=d=>d<0?'Departed':'D'+d;
+const dtdRange=t=>{const m=/^\s*D?(\d+)\s*(?:-|–|to)?\s*D?(\d+)?\s*$/i.exec(t||'');if(!m)return null;const a=+m[1],b=m[2]!=null?+m[2]:a;return [Math.min(a,b),Math.max(a,b)];};
+const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+function invFiltered(R){const dr=dtdRange($('invFDtd').value),d0=$('invFD0').value,d1=$('invFD1').value,sec=$('invFSector').value.trim(),dw=$('invFDow').value.replace(/[^1-7]/g,''),t0=E.parseTime($('invFT0').value),t1=E.parseTime($('invFT1').value),md=$('invFMode').value,only=$('invOnlyModel').checked;
+  return R.rows.filter(r=>(!dr||(dtdOf(r.date)>=dr[0]&&dtdOf(r.date)<=dr[1]))&&(!d0||r.date>=d0)&&(!d1||r.date<=d1)&&(!only||r.has_system)&&(!sec||matchSector(sec,r.sector))&&(!dw||dw.includes(r.dow))&&(!md||r.mode===md)&&
     (t0==null||E.parseTime(r.dep)%1440>=t0)&&(t1==null||E.parseTime(r.dep)%1440<=t1));}
 const matchSector=(pat,sector)=>E.matchMarket(pat,sector);  // same patterns as pricing and inventory rules
 const modePill=m=>m==='manual'?'<span class="pill closed"><span class="dot">✋</span>Manual</span>':m==='adjust'?'<span class="chg up">Adjusted</span>':'<span class="note">System</span>';
@@ -1019,8 +1027,8 @@ function renderInv(R){
   $('invPrio').querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{const i=+b.dataset.up;[ST.inv.rules[i-1],ST.inv.rules[i]]=[ST.inv.rules[i],ST.inv.rules[i-1]];save();renderInvInputs();schedInv();});
   $('invPrio').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>{const i=+b.dataset.dn;[ST.inv.rules[i+1],ST.inv.rules[i]]=[ST.inv.rules[i],ST.inv.rules[i+1]];save();renderInvInputs();schedInv();});
   const DN=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  $('invTbl').innerHTML='<thead><tr><th class="l">Date</th><th class="l">Day</th><th class="l">Flight</th><th class="l">Sector</th><th>Dep</th><th class="l">Fleet</th><th class="l">Control</th><th class="l">Rule</th><th>Bid price</th><th>Seats left</th><th title="Cabin AU / seats sold">Cabin AU / sold</th><th class="l">Availability</th><th>Changed classes</th><th></th></tr></thead><tbody>'+
-    rows.map((r,k)=>`<tr class="${r.mode==='manual'?'diff':(r.mode==='adjust'?'changed':'')}"><td class="l">${esc(r.date)}</td><td class="l">${DN[+r.dow]}</td><td class="l"><b>${esc(r.fn)}</b></td><td class="l">${esc(r.sector)}</td><td>${esc(r.dep)}</td><td class="l">${esc(r.fleet)}</td>
+  $('invTbl').innerHTML='<thead><tr><th class="l">Departure date</th><th class="l">Flight</th><th class="l">Sector</th><th class="l">Day</th><th title="Days from Today (D0) to departure">Days to dep.</th><th>Dep time</th><th class="l">Fleet</th><th class="l">Control</th><th class="l">Rule</th><th>Bid price</th><th>Seats left</th><th title="Cabin AU / seats sold">Cabin AU / sold</th><th class="l">Availability</th><th>Changed classes</th><th></th></tr></thead><tbody>'+
+    rows.map((r,k)=>`<tr class="${r.mode==='manual'?'diff':(r.mode==='adjust'?'changed':'')}"><td class="l"><b>${esc(r.date)}</b></td><td class="l"><b>${esc(r.fn)}</b></td><td class="l">${esc(r.sector)}</td><td class="l">${DN[+r.dow]}</td><td><b>${(d=>d<0?'<span class="note">Departed</span>':'D'+d)(dtdOf(r.date))}</b></td><td>${esc(r.dep)}</td><td class="l">${esc(r.fleet)}</td>
       <td class="l">${modePill(r.mode)}</td><td class="l small">${esc(r.rule_name||'')}</td><td>${r.has_system?(r.bp_eff!==r.bp?`${money(r.bp)} → <b>${money(r.bp_eff)}</b>`:money(r.bp)):'<span class="note">no model</span>'}</td><td>${r.remaining!=null?f0(r.remaining):'–'}</td><td>${r.cabin&&r.cabin.auth!=null?`${r.cabin.au!=null?'<b>'+f0(r.cabin.auth)+'</b>':f0(r.cabin.auth)} / ${r.cabin.sold!=null?f0(r.cabin.sold):'–'}`:'–'}</td>
       <td class="l"><code>${esc(r.avs)}</code></td><td>${r.differs||'–'}</td><td><button data-open="${esc(r.date+'|'+r.id)}">Open</button></td></tr>`).join('')+'</tbody>';
   $('invTbl').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{invOpen=b.dataset.open;renderInvDetail();$('invDetail').scrollIntoView({behavior:'smooth',block:'start'});});
@@ -1081,8 +1089,8 @@ function renderInvDetail(){
   $('invDetClear').onclick=()=>{ST.inv.rules=ST.inv.rules.filter(x=>x.name!==name);save();invShown=null;renderInvInputs();updateInv();$('invDetMsg').textContent='Override removed.';};
 }
 $('invDetClose').onclick=()=>{invOpen=null;invShown=null;$('invDetail').style.display='none';};
-$('invCopy').onclick=()=>{if(!lastInv)return;const rows=[['date','dow','flight','sector','dep','fleet','control','rule','bid_price','bid_price_effective','seats_left','cabin_au','sold','availability']];
-  invFiltered(lastInv).forEach(r=>rows.push([r.date,r.dow,r.fn,r.sector,r.dep,r.fleet,r.mode,r.rule_name||'',r.bp!=null&&isFinite(r.bp)?r.bp.toFixed(2):'',r.bp_eff!=null&&isFinite(r.bp_eff)?r.bp_eff.toFixed(2):'',r.remaining??'',r.cabin&&r.cabin.auth!=null?r.cabin.auth:'',r.cabin&&r.cabin.sold!=null?r.cabin.sold:'',r.avs]));
+$('invCopy').onclick=()=>{if(!lastInv)return;const rows=[['departure_date','dow','days_to_departure','flight','sector','dep','fleet','control','rule','bid_price','bid_price_effective','seats_left','cabin_au','sold','availability']];
+  invFiltered(lastInv).forEach(r=>rows.push([r.date,r.dow,dtdTxt(dtdOf(r.date)),r.fn,r.sector,r.dep,r.fleet,r.mode,r.rule_name||'',r.bp!=null&&isFinite(r.bp)?r.bp.toFixed(2):'',r.bp_eff!=null&&isFinite(r.bp_eff)?r.bp_eff.toFixed(2):'',r.remaining??'',r.cabin&&r.cabin.auth!=null?r.cabin.auth:'',r.cabin&&r.cabin.sold!=null?r.cabin.sold:'',r.avs]));
   copy(rows.map(r=>r.join(',')).join('\n'),$('invMsg'));};
 
 // ================= charts =================
