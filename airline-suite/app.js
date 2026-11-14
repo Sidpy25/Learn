@@ -992,7 +992,13 @@ function renderInvInputs(){
   document.querySelectorAll('[data-inv]').forEach(el=>{el.value=ST.inv[el.dataset.inv]??'';el.oninput=el.onchange=()=>{ST.inv[el.dataset.inv]=el.value;save();schedInv();};});
   editTable('ruleIn',ST.inv.rules,RULE_COLS,renderInvInputs,schedInv);
 }
-['invFSector','invFDtd','invFD0','invFD1','invFDow','invFT0','invFT1','invFMode','invOnlyModel'].forEach(id=>{const el=$(id);el.oninput=el.onchange=()=>lastInv&&renderInv(lastInv);});
+const INV_F=['invFSector','invFDtd','invFD0','invFD1','invFDow','invFT0','invFT1','invFMode','invOnlyModel'];
+INV_F.forEach(id=>{const el=$(id);el.oninput=el.onchange=()=>lastInv&&renderInv(lastInv);
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('invApply').click();}});});
+// filters update the list as you type; Apply also takes you to the results
+$('invApply').onclick=()=>{if(lastInv)renderInv(lastInv);const c=$('invTbl').closest('.card');c.scrollIntoView({behavior:'smooth',block:'start'});
+  c.classList.remove('flash');void c.offsetWidth;c.classList.add('flash');toast($('invCount').textContent);};
+$('invClear').onclick=()=>{INV_F.forEach(id=>{const el=$(id);if(el.type==='checkbox')el.checked=true;else el.value='';});if(lastInv)renderInv(lastInv);toast('Filters cleared: '+$('invCount').textContent+'.');};
 $('invNow').onclick=()=>{const t=localToday();ST.inv.today=t;ST.inv.start=t;save();renderInvInputs();schedInv();toast(`Today set to ${t} (D0); the horizon now starts today.`);};
 $('nrFromFilter').onclick=()=>{$('nrSectors').value=$('invFSector').value;$('nrDow').value=$('invFDow').value;$('nrT0').value=$('invFT0').value;$('nrT1').value=$('invFT1').value;
   $('nrFrom').value=$('invFD0').value||ST.inv.start||'';$('nrTo').value=$('invFD1').value||(ST.inv.start?addDaysUI(ST.inv.start,num(ST.inv.days,14)-1):'');
@@ -1017,6 +1023,13 @@ const matchSector=(pat,sector)=>E.matchMarket(pat,sector);  // same patterns as 
 const modePill=m=>m==='manual'?'<span class="pill closed"><span class="dot">✋</span>Manual</span>':m==='adjust'?'<span class="chg up">Adjusted</span>':'<span class="note">System</span>';
 function renderInv(R){
   const S=R.summary,rows=invFiltered(R);
+  { // how many flight-dates the filters leave, and which filters are on
+    const on=[];const v=id=>$(id).value.trim();
+    if(v('invFSector'))on.push('sector '+v('invFSector'));if(v('invFDtd')){const d=dtdRange(v('invFDtd'));on.push(d?(d[0]===d[1]?'D'+d[0]:`D${d[0]}–D${d[1]}`):'days '+v('invFDtd'));}
+    if(v('invFD0')||v('invFD1'))on.push(`${v('invFD0')||'…'} to ${v('invFD1')||'…'}`);if(v('invFDow'))on.push('days '+v('invFDow'));
+    if(v('invFT0')||v('invFT1'))on.push(`dep ${v('invFT0')||'00:00'}–${v('invFT1')||'23:59'}`);if(v('invFMode'))on.push($('invFMode').selectedOptions[0].text.toLowerCase());
+    const tot=R.rows.length,txt=`Showing ${rows.length} of ${tot} flight-dates`+(on.length?' · '+on.join(' · '):'')+($('invOnlyModel').checked&&S.no_model?` · ${S.no_model} without an RM model hidden`:'');
+    $('invCount').textContent=txt;$('invCount2').textContent=rows.length===tot?`· ${tot}`:`· ${rows.length} of ${tot}`;}
   const soon=ST.inv.rules.filter(r=>r.expires&&String(r.expires)>=String(ST.inv.today||'')&&String(r.expires)<=addDaysUI(ST.inv.today||ST.inv.start,3)).length;
   $('invKpis').innerHTML=kpiHtml([['Flight-dates in horizon',f0(S.flight_dates),`${num(ST.inv.days,14)} days from ${esc(ST.inv.start||'')}`],
     ['Under manual control',`<span style="color:${S.manual?'var(--critical)':'inherit'}">${S.manual}</span>`,'System optimisation off'],

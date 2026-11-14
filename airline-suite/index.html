@@ -229,21 +229,32 @@
       <h2>Inventory control</h2>
       <p class="note" style="margin-top:-4px">Every flight on every date in the horizon is controlled by the system unless an analyst rule takes over. <b>Manual</b> turns system optimisation off for the matching flights: the analyst opens or closes classes and caps seats; classes not mentioned are held at the current system value. <b>Adjusted</b> keeps optimisation on but moves the bid price (± % or amount) and can force classes open or closed. Rules are checked top to bottom; the first match wins.</p>
       <p class="hint" style="margin-top:0">The system recommendation comes from the RM network, which models one departure per leg (the Network &amp; demand tab). Every flight and date on that sector uses the same bid price, remaining seats and class availability; analyst rules then differ by flight and date. To control each flight-date on its own forecast, load that departure's bookings and demand in the RM network.</p>
+      <h3>Horizon</h3>
       <div class="fields">
         <label class="f">Horizon start<input data-inv="start" type="date"></label>
         <label class="f">Days<input data-inv="days" type="number" min="1" max="120" step="1"></label>
         <label class="f">Today = D0 (also for rule expiry)<input data-inv="today" type="date"></label>
         <label class="f">&nbsp;<button id="invNow" title="Set Today and the horizon start to the current date">Use current date</button></label>
-        <label class="f">Filter sector<input id="invFSector" type="text" placeholder="e.g. RUH-JED or *-CAI"></label>
+      </div>
+      <p class="hint" style="margin-top:6px">Which flight-dates are built: every scheduled flight from the start date for the number of days. Saved with your data.</p>
+      <h3>Show flight-dates</h3>
+      <div class="fields" id="invFilters">
+        <label class="f">Sector<input id="invFSector" type="text" placeholder="e.g. RUH-JED or *-CAI"></label>
         <label class="f">Days to departure<input id="invFDtd" type="text" placeholder="e.g. 0-7 or 3"></label>
         <label class="f">Departure date from<input id="invFD0" type="date"></label>
         <label class="f">Departure date to<input id="invFD1" type="date"></label>
-        <label class="f">Filter days of week<input id="invFDow" type="text" placeholder="1234567"></label>
-        <label class="f">Departure from<input id="invFT0" type="time"></label>
-        <label class="f">Departure to<input id="invFT1" type="time"></label>
+        <label class="f">Days of week<input id="invFDow" type="text" placeholder="1234567"></label>
+        <label class="f">Departure time from<input id="invFT0" type="time"></label>
+        <label class="f">Departure time to<input id="invFT1" type="time"></label>
         <label class="f">Control<select id="invFMode"><option value="">All</option><option value="manual">Manual</option><option value="adjust">Adjusted</option><option value="system">System</option></select></label>
       </div>
       <label class="row note" style="margin-top:10px"><input type="checkbox" id="invOnlyModel" style="width:auto" checked> Only sectors covered by the RM network (others have no system recommendation)</label>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="invApply">Apply filters</button>
+        <button id="invClear">Clear filters</button>
+        <span class="note" id="invCount" aria-live="polite"></span>
+      </div>
+      <p class="hint" style="margin-top:6px">Filters only change which flight-dates are listed below; they don't change availability. They are also the quickest way to target a rule: filter, then use "Use current filters" in Take control of flights.</p>
     </div>
     <div class="kpis" id="invKpis"></div>
     <div class="card">
@@ -292,7 +303,7 @@
       <p class="hint"><b>AU</b> (authorisation) is nested, as in Amadeus or Navitaire inventory: it is the total seats this class and every lower class may sell, including seats already sold. Availability for a class = the smallest of (AU − sold incl. lower) for that class and every class above it, and never more than cabin AU − total sold. Lowering M's AU therefore also limits K, V and E; raising a closed class's AU above its sold count opens it. <b>Seat limit</b> caps one class only and is not nested. <b>Cabin AU</b> replaces the system overbooking for this flight-date. Extra cabin seats only reach a class whose own AU (and the AUs above it) leave room, so to sell overbooked seats in Y, raise Y's AU too. Leave a field blank to keep the system value. Changes preview straight away; saving creates or updates a rule for just this flight number and date, at the top of the list.</p>
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Flight-dates</h2><div class="row"><button id="invCopy">Copy CSV</button><span class="msg" id="invMsg"></span></div></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Flight-dates <span class="note" id="invCount2" style="font-weight:400"></span></h2><div class="row"><button id="invCopy">Copy CSV</button><span class="msg" id="invMsg"></span></div></div>
       <div class="scroll tall"><table id="invTbl"></table></div>
     </div>
   </section>
