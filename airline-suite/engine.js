@@ -587,15 +587,23 @@ const MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DE
 const offM=s=>{s=String(s||'').trim();return /^[+-]\d{4}$/.test(s)?(s[0]==='+'?1:-1)*(parseInt(s.slice(1,3),10)*60+parseInt(s.slice(3,5),10)):0;};
 const ofS=m=>(m>=0?'+':'-')+String(Math.floor(Math.abs(m)/60)).padStart(2,'0')+String(Math.abs(m)%60).padStart(2,'0');
 const mod=(a,n)=>((a%n)+n)%n;
+// move days of operation by k days (e.g. +1: a Monday departure becomes Tuesday)
+const shiftDays=(days,k)=>{if(!k)return days;const s=new Set(String(days).split('').filter(c=>DAYS.includes(c)).map(c=>String(mod(+c-1+k,7)+1)));return DAYS.split('').filter(c=>s.has(c)).join('');};
+const dvChar=k=>k<0?'A':String(Math.min(9,k));
 function ssimImport(text,plan,refOffset){
   const ref=offM(refOffset||'+0300'),byIata={};(plan.fleets||[]).forEach(f=>{if(f.iata)byIata[String(f.iata).trim().toUpperCase()]=f.type;});
   const flights=[],warnings=[],seen=new Set();
   String(text||'').split(/\r?\n/).forEach((raw,n0)=>{const n=n0+1,line=raw.padEnd(200);if(line[0]!=='3')return;
-    const al=line.slice(2,5).trim(),nr=line.slice(5,9).trim().replace(/^0+/,'')||'0',days=line.slice(28,35).split('').filter(c=>DAYS.includes(c)).join('');
+    let days;const al=line.slice(2,5).trim(),nr=line.slice(5,9).trim().replace(/^0+/,'')||'0';days=line.slice(28,35).split('').filter(c=>DAYS.includes(c)).join('');
     const org=line.slice(36,39).trim(),std=line.slice(39,43),dvar=line.slice(47,52),dst=line.slice(54,57).trim(),sta=line.slice(57,61),avar=line.slice(65,70),ac=line.slice(72,75).trim().toUpperCase();
     if(!(/^\d{4}$/.test(std)&&/^\d{4}$/.test(sta)&&org&&dst&&days)){warnings.push(`Line ${n}: could not read the flight leg record`);return;}
-    const depU=parseInt(std.slice(0,2),10)*60+parseInt(std.slice(2),10)-offM(dvar),arrU=parseInt(sta.slice(0,2),10)*60+parseInt(sta.slice(2),10)-offM(avar);
-    const blk=mod(arrU-depU,1440),depR=mod(depU+ref,1440),fn=al+nr,leg=line.slice(11,13).trim()||'01';let fid=`${fn}-${org}-${leg}`,k=2;while(seen.has(fid)){fid=`${fn}-${org}-${leg}-${k}`;k++;}seen.add(fid);
+    // bytes 193/194: departure / arrival date variation (0,1,2 = days later, A = day before)
+    const dv=c=>c==='A'?-1:(/^[0-9]$/.test(c)?+c:0),depDv=dv(line[192]),arrDv=dv(line[193]);
+    const depU=parseInt(std.slice(0,2),10)*60+parseInt(std.slice(2),10)-offM(dvar),arrU=parseInt(sta.slice(0,2),10)*60+parseInt(sta.slice(2),10)-offM(avar)+(arrDv-depDv)*1440;
+    const blk=line[193]===' '||line[193]==null?mod(arrU-depU,1440):arrU-depU;
+    // days are local departure days; move them to the schedule reference date
+    const shift=Math.floor((depU+ref)/1440)+depDv;days=shiftDays(days,shift);
+    const depR=mod(depU+ref,1440),fn=al+nr,leg=line.slice(11,13).trim()||'01';let fid=`${fn}-${org}-${leg}`,k=2;while(seen.has(fid)){fid=`${fn}-${org}-${leg}-${k}`;k++;}seen.add(fid);
     const fleet=byIata[ac]||ac;if(ac&&!byIata[ac])warnings.push(`Line ${n} ${fn}: aircraft type ${ac} has no planning fleet with that IATA code`);
     flights.push({id:fid,fn,org,dst,dep:String(Math.floor(depR/60)).padStart(2,'0')+':'+String(depR%60).padStart(2,'0'),block:`${Math.floor(blk/60)}:${String(blk%60).padStart(2,'0')}`,days,fleet,status:'active'});});
   return {flights,warnings};
@@ -606,11 +614,13 @@ function ssimExport(sched,plan,airline,refOffset,pFrom,pTo,stationOffsets){
   const dd=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s||''));return m?String(parseInt(m[3],10)).padStart(2,'0')+MON[parseInt(m[2],10)-1]+m[1].slice(2):'00XXX00';};
   const pf=dd(pFrom),pt=dd(pTo),out=['1AIRLINE STANDARD SCHEDULE DATA SET'.padEnd(194)+'000001',('2U'+airline.padEnd(3).slice(0,3)+'    '+pf+pt).padEnd(194)+'000002'];let serial=3;
   const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+String(m%60).padStart(2,'0');
-  (sched||[]).forEach(f=>{if(isCancelled(f))return;const dep=parseTime(f.dep),blk=parseBlock(f.block),days=normDays(f.days);if(dep==null||blk<=0||!days)return;
+  (sched||[]).forEach(f=>{if(isCancelled(f))return;const dep=parseTime(f.dep),blk=parseBlock(f.block);let days=normDays(f.days);if(dep==null||blk<=0||!days)return;
     const org=String(f.org||'').toUpperCase(),dst=String(f.dst||'').toUpperCase(),oo=org in so?so[org]:ref,od=dst in so?so[dst]:ref,depU=dep-ref,std=mod(depU+oo,1440),sta=mod(depU+blk+od,1440);
+    // days of operation are local departure days; arrival date variation is relative to the local departure date
+    const depDay=Math.floor((depU+oo)/1440),arrDv=Math.floor((depU+blk+od)/1440)-depDay;days=shiftDays(days,depDay);
     const fn=String(f.fn||''),al=(fn.replace(/\d/g,'').slice(0,3))||airline,nr=fn.replace(/\D/g,'').slice(-4),dstr=DAYS.split('').map(d=>days.includes(d)?d:' ').join('');
     const rec='3'+' '+al.padEnd(3)+nr.padStart(4)+'01'+'01'+'J'+pf+pt+dstr+' '+org.padEnd(3)+hm(std)+hm(std)+ofS(oo)+'  '+dst.padEnd(3)+hm(sta)+hm(sta)+ofS(od)+'  '+(iata[String(f.fleet||'').toUpperCase()]||'').padEnd(3).slice(0,3);
-    out.push(rec.padEnd(194)+String(serial).padStart(6,'0'));serial++;});
+    out.push(rec.padEnd(192)+'0'+dvChar(arrDv)+String(serial).padStart(6,'0'));serial++;});
   out.push(('5 '+airline.padEnd(3).slice(0,3)).padEnd(187)+String(serial-1).padStart(6,'0')+'E'+String(serial).padStart(6,'0'));
   return out.join('\n')+'\n';
 }
@@ -663,5 +673,5 @@ function inventoryRun(rmState,sched,inv){
       no_model:rows.filter(r=>!r.has_system).length,differs:rows.filter(r=>r.differs).length}};
 }
 
-global.NetEngine={inventoryRun,ssimImport,ssimExport,commercialRun,ancPerPax,priceFares,opsRun,schedAnalyzeChange,schedAnalyze,parseTime,parseBlock,fmtTime,normDays,rmCompute,rmSimulate,rmSimulateState,planOptimize,currentSchedule,evaluate,emsr,networkLP,curveAt,DTD_PTS};
+global.NetEngine={matchMarket,shiftDays,inventoryRun,ssimImport,ssimExport,commercialRun,ancPerPax,priceFares,opsRun,schedAnalyzeChange,schedAnalyze,parseTime,parseBlock,fmtTime,normDays,rmCompute,rmSimulate,rmSimulateState,planOptimize,currentSchedule,evaluate,emsr,networkLP,curveAt,DTD_PTS};
 })(typeof window!=='undefined'?window:globalThis);

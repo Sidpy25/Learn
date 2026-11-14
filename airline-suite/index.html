@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airline Network Suite: RM &amp; Fleet Planning</title>
+<title>Airline Commercial Suite</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
 <div class="wrap">
   <div class="topbar">
     <div>
-      <h1>Airline Network Suite</h1>
-      <p class="sub" style="margin-bottom:10px">Network revenue management and fleet block-hour planning in one place: RM sets bid prices and seat availability across the O&amp;D network, and planning decides where each fleet's block hours earn the most, using the same demand and fares.</p>
+      <h1>Airline Commercial Suite</h1>
+      <p class="sub" style="margin-bottom:10px">Revenue optimisation, inventory control, pricing, network planning, schedule changes, ancillaries and sales, aircraft rotations and crew in one place, all working from the same demand, fares and schedule. RM sets bid prices and seat availability across the O&amp;D network; inventory lets analysts take over flight-dates; pricing builds the fares RM sells; planning decides where each fleet's block hours earn the most; schedule changes are checked for rotations, connections and contribution before they reach aircraft and crew.</p>
     </div>
     <span class="badge" id="engineBadge"><span class="d"></span><span id="engineTxt">Checking engine…</span></span>
   </div>
@@ -212,6 +212,7 @@
     <div class="card">
       <h2>Inventory control</h2>
       <p class="note" style="margin-top:-4px">Every flight on every date in the horizon is controlled by the system unless an analyst rule takes over. <b>Manual</b> turns system optimisation off for the matching flights: the analyst opens or closes classes and caps seats; classes not mentioned are held at the current system value. <b>Adjusted</b> keeps optimisation on but moves the bid price (± % or amount) and can force classes open or closed. Rules are checked top to bottom; the first match wins.</p>
+      <p class="hint" style="margin-top:0">The system recommendation comes from the RM network, which models one departure per leg (the Network &amp; demand tab). Every flight and date on that sector uses the same bid price, remaining seats and class availability; analyst rules then differ by flight and date. To control each flight-date on its own forecast, load that departure's bookings and demand in the RM network.</p>
       <div class="fields">
         <label class="f">Horizon start<input data-inv="start" type="date"></label>
         <label class="f">Days<input data-inv="days" type="number" min="1" max="120" step="1"></label>
@@ -304,7 +305,7 @@
       <p class="hint">Frequency elasticity: 0.3 means doubling frequency grows route demand by about 23% (2<sup>0.3</sup>). Demand variability: day-to-day spread of demand per departure (0.35 is typical); it drives spill when flights fill.</p>
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fleets</h2><button id="addFleet">+ Add fleet</button></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fleets</h2><div class="row"><span class="msg" id="fleetMsg"></span><button id="addFleet">+ Add fleet</button></div></div>
       <div class="scroll"><table id="fleetIn"></table></div>
       <p class="hint">Cost per block hour = variable operating cost (fuel, maintenance, crew, navigation). Fee per departure = airport, handling and other per-flight charges. Weekly block-hour budget = aircraft × utilisation × 7.</p>
     </div>

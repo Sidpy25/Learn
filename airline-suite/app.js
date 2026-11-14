@@ -219,10 +219,37 @@ function renderFleetIn(){
     <td><input type="number" step="0.1" data-i="${i}" data-k="util" value="${esc(f.util)}"></td><td><input type="number" data-i="${i}" data-k="cost_bh" value="${esc(f.cost_bh)}"></td>
     <td><input type="number" data-i="${i}" data-k="fee_dep" value="${esc(f.fee_dep)}"></td><td><input type="number" data-i="${i}" data-k="turn" value="${esc(f.turn??45)}"></td><td class="l"><input class="t" data-i="${i}" data-k="iata" value="${esc(f.iata??'')}" style="width:56px;min-width:56px"></td><td class="bhb">${f0(num(f.count)*num(f.util)*7)}</td><td><button data-df="${i}" aria-label="Remove fleet">✕</button></td></tr>`;});
   $('fleetIn').innerHTML=h+'</tbody>';
-  $('fleetIn').querySelectorAll('input').forEach(el=>el.oninput=()=>{const f=ST.plan.fleets[+el.dataset.i];f[el.dataset.k]=el.value;save();planStale=true;
-    el.closest('tr').querySelector('.bhb').textContent=f0(num(f.count)*num(f.util)*7);});
-  $('fleetIn').querySelectorAll('[data-df]').forEach(b=>b.onclick=()=>{ST.plan.fleets.splice(+b.dataset.df,1);save();planStale=true;renderFleetIn();renderRouteIn();});
+  $('fleetIn').querySelectorAll('input').forEach(el=>{
+    if(el.dataset.k==='type'){el.onchange=()=>{const f=ST.plan.fleets[+el.dataset.i],from=String(f.type),to=el.value.trim();
+      if(!to||to===from){el.value=from;return;}
+      if(ST.plan.fleets.some((x,j)=>j!==+el.dataset.i&&String(x.type).toUpperCase()===to.toUpperCase())){el.value=from;fleetMsg(`A fleet called ${to} already exists.`);return;}
+      const n=renameFleet(from,to);save();planStale=true;renderFleetIn();renderRouteIn();fleetMsg(`Renamed ${from} to ${to}: ${n} references updated across routes, schedule, aircraft, crew and costs.`);};return;}
+    el.oninput=()=>{const f=ST.plan.fleets[+el.dataset.i];f[el.dataset.k]=el.value;save();planStale=true;
+      el.closest('tr').querySelector('.bhb').textContent=f0(num(f.count)*num(f.util)*7);};});
+  $('fleetIn').querySelectorAll('[data-df]').forEach(b=>b.onclick=()=>{const t=String(ST.plan.fleets[+b.dataset.df].type),u=fleetUse(t),tot=Object.values(u).reduce((a,c)=>a+c,0);
+    if(tot&&!confirm(`${t} is still used by ${Object.entries(u).filter(x=>x[1]).map(([k,v])=>`${v} ${k}`).join(', ')}. Remove it anyway? Routes currently flown by it will be moved to another allowed fleet.`))return;
+    ST.plan.fleets.splice(+b.dataset.df,1);
+    const U=s=>String(s||'').toUpperCase();
+    ST.plan.routes.forEach(r=>{if(U(r.cur_fleet)===U(t)){const alt=ST.plan.fleets.find(f=>{const sp=String(r.fleets||'all').trim();return !sp||sp.toLowerCase()==='all'||sp.split(/[,;|]/).map(U).includes(U(f.type));});r.cur_fleet=alt?alt.type:'';}});
+    save();planStale=true;renderFleetIn();renderRouteIn();
+    if(tot)fleetMsg(`${t} removed. Schedule flights, aircraft and crew pool rows that used it are flagged in their checks until you reassign them.`);});
 }
+function fleetMsg(t){$('fleetMsg').textContent=t;setTimeout(()=>$('fleetMsg').textContent='',6000);}
+// where a fleet type is referenced outside the fleet table
+function fleetUse(t){const U=s=>String(s||'').toUpperCase(),T=U(t);
+  return {'planning routes':ST.plan.routes.filter(r=>U(r.cur_fleet)===T).length,'scheduled flights':[...ST.sched.base,...ST.sched.prop].filter(f=>U(f.fleet)===T).length,
+    'aircraft':ST.ops.tails.filter(x=>U(x.fleet)===T).length,'crew pool rows':ST.ops.pool.filter(x=>U(x.fleet)===T).length};}
+function renameFleet(from,to){const U=s=>String(s||'').toUpperCase(),F=U(from);let n=0;
+  const f=ST.plan.fleets.find(x=>U(x.type)===F);if(f)f.type=to;
+  ST.plan.routes.forEach(r=>{if(U(r.cur_fleet)===F){r.cur_fleet=to;n++;}
+    const sp=String(r.fleets||'').trim();if(sp&&sp.toLowerCase()!=='all'){const parts=sp.split(/[,;|]/).map(x=>x.trim());if(parts.some(x=>U(x)===F)){r.fleets=parts.map(x=>U(x)===F?to:x).join(',');n++;}}});
+  [...ST.sched.base,...ST.sched.prop].forEach(x=>{if(U(x.fleet)===F){x.fleet=to;n++;}});
+  ST.ops.tails.forEach(x=>{if(U(x.fleet)===F){x.fleet=to;n++;}});
+  ST.ops.pool.forEach(x=>{if(U(x.fleet)===F){x.fleet=to;n++;}});
+  ST.ops.leave.forEach(x=>{const p=String(x.crew||'').split('-');if(p.length>=3&&U(p[1])===F){p[1]=to;x.crew=p.join('-');n++;}});
+  const mv=o=>{if(!o)return;const k=Object.keys(o).find(x=>U(x)===F);if(k!=null&&k!==to){o[to]=o[k];delete o[k];n++;}};
+  mv(ST.ops.complement);mv(ST.com&&ST.com.costs&&ST.com.costs.lease);
+  return n;}
 function renderRouteIn(){
   const opts=ST.plan.fleets.map(f=>`<option value="${esc(f.type)}">${esc(f.type)}</option>`).join('');
   let h='<thead><tr><th class="l">Route</th><th>Block time (h, one way)</th><th>Distance (km)</th><th>Demand / wk / dir</th><th>Net fare</th><th>Current freq / wk</th><th class="l">Current fleet</th><th>Min freq</th><th>Max freq</th><th class="l">Allowed fleets</th><th></th></tr></thead><tbody>';
@@ -551,10 +578,11 @@ $('draftFromPlan').onclick=async()=>{
 };
 // proposed schedule -> planning current frequencies
 $('pushToPlan').onclick=()=>{if(!lastSched)return;const e=num(ST.plan.params.elasticity,0.3);let n=0;
-  const by={};lastSched.prop.routes.forEach(r=>by[r.route]=r);
-  ST.plan.routes.forEach(rt=>{const r=by[String(rt.route).toUpperCase()];if(!r)return;const nf=Math.round(r.round_trips),of=Math.max(1,num(rt.cur_freq,7));
+  const by={};lastSched.prop.routes.forEach(r=>by[r.route]=r);const none=[];
+  ST.plan.routes.forEach(rt=>{const r=by[String(rt.route).toUpperCase()];if(!r){if(num(rt.cur_freq)>0)none.push(String(rt.route).toUpperCase());return;}const nf=Math.round(r.round_trips),of=Math.max(1,num(rt.cur_freq,7));
     if(nf>0)rt.demand=Math.round(num(rt.demand)*Math.pow(nf/of,e));rt.cur_freq=nf;if(r.fleet)rt.cur_fleet=r.fleet;n++;});
-  save();planStale=true;renderRouteIn();flash(`Updated current frequency and fleet for ${n} planning routes (demand rescaled to the new frequencies).`);};
+  save();planStale=true;renderRouteIn();flash(`Updated current frequency and fleet for ${n} planning routes (demand rescaled to the new frequencies).`+
+    (none.length?` Not changed: ${none.join(', ')} ${none.length>1?'have':'has'} no flights in the proposed schedule; their demand is defined at the current frequency, so set Max freq to 0 in planning if the route is being dropped.`:''));};
 
 
 // ================= OPERATIONS =================
@@ -655,8 +683,8 @@ function renderOps(R){
       const crewTxt=['CPT','FO','CC'].map(r=>`${r} ${d.crew?d.crew[r].length:0}/${d.need[r]}`).join(' · ');
       const st=!d.legal?'<span class="pill closed"><span class="dot">✕</span>Over FDP</span>':!d.end_at_base?'<span class="chg dn">Ends away</span>':shortBy[d.id]?`<span class="chg dn">${shortBy[d.id]} unfilled</span>`:'<span class="pill open"><span class="dot">✓</span>OK</span>';
       return `<tr class="${ok?'':'diff'}"><td class="l"><b>${esc(d.id)}</b></td><td class="l">${DAYN[+d.day-1]}</td><td class="l">${esc(d.base)}</td><td class="l">${esc(d.reg||'–')}</td><td class="l">${esc(d.route)}</td><td>${hhmm(d.report)}</td><td>${hhmm(d.release)}</td><td>${d.fdp.toFixed(1)}</td><td>${d.max_fdp.toFixed(1)}</td><td>${d.block.toFixed(1)}</td><td class="l small" title="${esc(['CPT','FO','CC'].map(r=>r+': '+(d.crew?d.crew[r].join(', '):'')).join('\n'))}">${crewTxt}</td><td class="l">${st}</td></tr>`;}).join('')+'</tbody>';
-  const bases=[...new Set(Rr.grid.map(g=>g.base))],bs=$('rosBase'),cur=bs.value;
-  bs.innerHTML='<option value="">All bases</option>'+bases.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');bs.value=bases.includes(cur)?cur:'';
+  const bases=[...new Set(Rr.grid.map(g=>g.base))],bs=$('rosBase'),prevBase=bs.value;
+  bs.innerHTML='<option value="">All bases</option>'+bases.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');bs.value=bases.includes(prevBase)?prevBase:'';
   const dutyBy={};R.duties.forEach(d=>dutyBy[d.id]=d);
   const gr=Rr.grid.filter(g=>(!bs.value||g.base===bs.value)&&(!$('rosRank').value||g.rank===$('rosRank').value));
   $('rosTbl').innerHTML='<thead><tr><th class="l">Crew</th><th class="l">Rank</th><th class="l">Qualification</th>'+DAYN.map(d=>`<th class="l">${d}</th>`).join('')+'<th>Duty h</th><th>Block h</th><th>Days on</th></tr></thead><tbody>'+
@@ -920,7 +948,7 @@ $('nrCreate').onclick=()=>{const v=id=>$(id).value.trim();
 function invFiltered(R){const sec=$('invFSector').value.trim(),dw=$('invFDow').value.replace(/[^1-7]/g,''),t0=E.parseTime($('invFT0').value),t1=E.parseTime($('invFT1').value),md=$('invFMode').value,only=$('invOnlyModel').checked;
   return R.rows.filter(r=>(!only||r.has_system)&&(!sec||matchSector(sec,r.sector))&&(!dw||dw.includes(r.dow))&&(!md||r.mode===md)&&
     (t0==null||E.parseTime(r.dep)%1440>=t0)&&(t1==null||E.parseTime(r.dep)%1440<=t1));}
-function matchSector(pat,sector){return String(pat).split(/[,;]/).map(x=>x.trim().toUpperCase()).filter(Boolean).some(p=>p==='ALL'||new RegExp('^'+p.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*')+'$').test(sector));}
+const matchSector=(pat,sector)=>E.matchMarket(pat,sector);  // same patterns as pricing and inventory rules
 const modePill=m=>m==='manual'?'<span class="pill closed"><span class="dot">✋</span>Manual</span>':m==='adjust'?'<span class="chg up">Adjusted</span>':'<span class="note">System</span>';
 function renderInv(R){
   const S=R.summary,rows=invFiltered(R);
