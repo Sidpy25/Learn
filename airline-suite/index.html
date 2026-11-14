@@ -14,7 +14,13 @@
       <h1>Airline Commercial Suite</h1>
       <p class="sub" style="margin-bottom:10px">Revenue optimisation, inventory control, pricing, network planning, schedule changes, ancillaries and sales, aircraft rotations and crew in one place, all working from the same demand, fares and schedule. RM sets bid prices and seat availability across the O&amp;D network; inventory lets analysts take over flight-dates; pricing builds the fares RM sells; planning decides where each fleet's block hours earn the most; schedule changes are checked for rotations, connections and contribution before they reach aircraft and crew.</p>
     </div>
-    <span class="badge" id="engineBadge"><span class="d"></span><span id="engineTxt">Checking engine…</span></span>
+    <div class="row tools">
+      <button id="undoBtn" title="Undo last change (Ctrl+Z)" aria-label="Undo" disabled>↶ Undo</button>
+      <button id="redoBtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>↷ Redo</button>
+      <button id="themeBtn" title="Switch light / dark / follow system" aria-label="Colour theme">◐ Auto</button>
+      <button id="keysBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">⌨ Shortcuts</button>
+      <span class="badge" id="engineBadge"><span class="d"></span><span id="engineTxt">Checking engine…</span></span>
+    </div>
   </div>
 
   <nav class="tabs" id="tabs">
@@ -50,8 +56,18 @@
       <div class="row"><label class="row note">Schedule basis <select data-com="basis" style="width:auto"><option value="current">Current schedule</option><option value="optimised">Optimised plan</option></select></label><button id="dashRefresh">Refresh</button></div></div>
     <div class="kpis" id="dashKpis"></div>
     <div class="grid2">
-      <div class="card"><h2>Weekly profit by route</h2><div class="chart" id="chDashProfit"></div></div>
+      <div class="card"><h2>Weekly profit by route</h2><div class="chart" id="chDashProfit" data-pick="route"></div></div>
       <div class="card"><h2>Where the revenue goes (per week)</h2><div class="chart" id="chDashCost"></div></div>
+    </div>
+    <div class="card" id="wiCard">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><h2 style="margin:0">What-if</h2>
+        <div class="row"><button id="wiReset">Reset</button><button id="wiApply" title="Write these changes into the data (can be undone)">Apply to data</button><button id="wiSave" class="primary">Save as scenario</button></div></div>
+      <p class="note" id="wiState" style="margin-top:0"></p>
+      <div class="wi-grid" id="wiSliders"></div>
+      <div class="kpis" id="wiKpis" style="margin-top:14px"></div>
+      <div class="legend"><span><i style="background:var(--series-2)"></i>Today</span><span><i style="background:var(--series-1)"></i>What-if</span></div>
+      <div class="chart" id="chWi" data-pick="route" style="max-width:900px"></div>
+      <p class="hint">Fare changes move demand by the elasticity: −1% fare with elasticity 0.8 adds about 0.8% demand. Frequencies and fleets stay as on the schedule basis, so extra demand is capped by seats (spill). Fuel price index scales the fuel share of cost per block hour; the other-cost slider scales the rest. Calculated in the browser engine.</p>
     </div>
     <div class="card"><h2>Alerts across the suite</h2><div id="dashAlerts" class="note"></div></div>
     <div class="card"><h2>Budget targets</h2><div class="fields">
@@ -75,7 +91,7 @@
       <div class="scroll" style="margin-top:10px"><table id="leaseIn"></table></div>
     </div>
     <div class="kpis" id="pnlKpis"></div>
-    <div class="card"><h2>Profit by route</h2><div class="chart" id="chPnl" style="max-width:900px"></div></div>
+    <div class="card"><h2>Profit by route</h2><div class="chart" id="chPnl" data-pick="route" style="max-width:900px"></div></div>
     <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Route P&amp;L (per week)</h2><div class="row"><button id="copyPnl">Copy CSV</button><span class="msg" id="pnlMsg"></span></div></div>
       <div class="scroll"><table id="pnlTbl"></table></div>
       <p class="hint">Route distance is set in Network planning → Fleet &amp; routes. RASK / CASK per available seat-km; yield per revenue passenger-km.</p></div>
@@ -176,7 +192,7 @@
       <p class="hint">Network EMSR = EMSR-b on each leg, valuing every itinerary at its fare minus the bid prices of its other legs, iterated until stable. Network LP = shadow price of leg capacity in the network linear programme. Leg-only = EMSR-b with distance-prorated fares (segment control).</p>
     </div>
     <div class="grid2">
-      <div class="card"><h2>Bid price by leg and method</h2><div class="legend" id="bpLegend"></div><div class="chart" id="chBp"></div></div>
+      <div class="card"><h2>Bid price by leg and method</h2><div class="legend" id="bpLegend"></div><div class="chart" id="chBp" data-pick="leg"></div></div>
       <div class="card">
         <div class="row" style="justify-content:space-between"><h2 style="margin:0">EMSR seat-value curve</h2><select id="curveLeg" style="width:auto"></select></div>
         <div class="chart" id="chCurve" style="margin-top:8px"></div>
@@ -328,8 +344,8 @@
     <div class="card"><h2>Fleets</h2><div class="scroll"><table id="fleetOut"></table></div>
       <p class="hint">Value of one more aircraft = extra weekly contribution if the fleet had one more aircraft at the same utilisation. Divided by its weekly block hours it gives the value of an extra block hour: a guide for wet-lease, utilisation and maintenance-slot decisions.</p></div>
     <div class="grid2">
-      <div class="card"><h2>Block hours by fleet</h2><div class="legend"><span><i style="background:var(--series-1)"></i>Optimised</span><span><i style="background:var(--series-2)"></i>Current schedule</span><span><i style="background:var(--text-muted);height:2px;vertical-align:3px"></i>Budget</span></div><div class="chart" id="chBh"></div></div>
-      <div class="card"><h2>Contribution per block hour, by route</h2><div class="chart" id="chCpb"></div></div>
+      <div class="card"><h2>Block hours by fleet</h2><div class="legend"><span><i style="background:var(--series-1)"></i>Optimised</span><span><i style="background:var(--series-2)"></i>Current schedule</span><span><i style="background:var(--text-muted);height:2px;vertical-align:3px"></i>Budget</span></div><div class="chart" id="chBh" data-pick="fleet"></div></div>
+      <div class="card"><h2>Contribution per block hour, by route</h2><div class="chart" id="chCpb" data-pick="planroute"></div></div>
     </div>
     <div class="card"><h2>Optimised schedule</h2><div class="scroll"><table id="routeOut"></table></div>
       <p class="hint">Contribution = revenue − variable operating cost (before fixed costs such as aircraft ownership and overheads). Next frequency = extra contribution per block hour from adding one more weekly round trip: routes at the top of this list are first in line for extra hours.</p></div>
@@ -460,7 +476,7 @@
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fare ladder</h2><select id="priceMarket" style="width:auto"></select></div>
       <div class="legend"><span><i style="background:var(--series-1)"></i>Net fare</span><span><i style="background:var(--series-2)"></i>Taxes &amp; fees</span></div>
-      <div class="chart" id="chLadder" style="max-width:720px"></div>
+      <div class="chart" id="chLadder" data-pick="fare" style="max-width:720px"></div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Price list</h2><div class="row"><select id="priceCur" style="width:auto"></select><input id="priceFilter" type="text" placeholder="Filter market or RBD" style="width:200px"></div></div>
@@ -623,9 +639,26 @@
   </section>
 </div>
 <div class="tip" id="tip"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog id="keysDlg" aria-labelledby="keysTitle">
+  <h2 id="keysTitle">Keyboard shortcuts</h2>
+  <table class="keys"><tbody>
+    <tr><td class="l"><kbd>[</kbd> / <kbd>]</kbd></td><td class="l">Previous / next tab</td></tr>
+    <tr><td class="l"><kbd>g</kbd> then <kbd>c</kbd> <kbd>r</kbd> <kbd>i</kbd> <kbd>n</kbd> <kbd>s</kbd> <kbd>p</kbd> <kbd>o</kbd> <kbd>d</kbd></td><td class="l">Go to Commercial, Revenue mgmt, Inventory, Network planning, Schedule changes, Pricing, Operations, Data</td></tr>
+    <tr><td class="l"><kbd>/</kbd></td><td class="l">Search the tables on this tab</td></tr>
+    <tr><td class="l"><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td class="l">Undo last change</td></tr>
+    <tr><td class="l"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd></td><td class="l">Redo</td></tr>
+    <tr><td class="l"><kbd>t</kbd></td><td class="l">Switch colour theme</td></tr>
+    <tr><td class="l"><kbd>?</kbd></td><td class="l">Show this list</td></tr>
+    <tr><td class="l"><kbd>Esc</kbd></td><td class="l">Close dialogs and search</td></tr>
+  </tbody></table>
+  <p class="hint">Click a column heading to sort; click again to reverse, a third time to restore the original order. Click a bar or a flight in a chart to jump to its details.</p>
+  <div class="row" style="justify-content:flex-end;margin-top:10px"><button id="keysClose" class="primary">Close</button></div>
+</dialog>
 </div>
 <script src="demo-data.js"></script>
 <script src="engine.js"></script>
 <script src="app.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>

@@ -35,7 +35,15 @@ function migrate(ST){const D=window.DEMO_DATA;
   ST.ops.tails.forEach(t=>{if(t.hrs_to_check==null)t.hrs_to_check='';});
   return ST;}
 migrate(ST);
-const save=()=>store.set(KEY,JSON.stringify(ST));
+// ---- save + undo/redo: every save() is one step; quick successive edits (typing) merge into one step
+const UNDO_MAX=60;let undoStack=[],redoStack=[],savedJson=JSON.stringify(ST),lastSaveAt=0;
+const save=()=>{const j=JSON.stringify(ST);if(j===savedJson)return;const now=Date.now();
+  if(now-lastSaveAt>900||!undoStack.length){undoStack.push(savedJson);if(undoStack.length>UNDO_MAX)undoStack.shift();}
+  redoStack=[];savedJson=j;lastSaveAt=now;store.set(KEY,j);document.dispatchEvent(new CustomEvent('suite:history'));};
+function restore(j){ST=migrate(JSON.parse(j));savedJson=j;lastSaveAt=0;store.set(KEY,j);lastPrice=null;lastCom=null;lastPlan=null;planStale=true;
+  renderAll();schedRm();document.dispatchEvent(new CustomEvent('suite:history'));}
+function undo(){if(!undoStack.length)return false;redoStack.push(savedJson);restore(undoStack.pop());return true;}
+function redo(){if(!redoStack.length)return false;undoStack.push(savedJson);restore(redoStack.pop());return true;}
 const cur=()=>ST.rm.cur||'';
 
 // ================= API / ENGINE =================
@@ -72,6 +80,10 @@ async function runPlanEngine(){
   return E.planOptimize(ST.plan);
 }
 
+// ================= toasts =================
+function toast(text,kind){const box=$('toasts');if(!box||!text)return;const t=document.createElement('div');t.className='toast'+(kind?' '+kind:'');t.setAttribute('role',kind==='bad'?'alert':'status');
+  t.innerHTML=`<span>${esc(text)}</span><button aria-label="Dismiss">✕</button>`;t.querySelector('button').onclick=()=>t.remove();box.appendChild(t);
+  while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),300);},Math.min(9000,2600+text.length*35));}
 // ================= formatting =================
 const f0=x=>x==null?'–':isFinite(x)?Math.round(x).toLocaleString('en-US'):'Full';
 const f1=x=>x==null||!isFinite(x)?'–':x.toFixed(1);
@@ -408,9 +420,10 @@ async function renderScenarios(){renderGov();
     if(server)await api('/api/scenarios/'+id,null,'DELETE');else store.set(SC_KEY,JSON.stringify(localScenarios().filter(x=>x.id!==id)));renderScenarios();});
 }
 $('scSave').onclick=async()=>{const name=$('scName').value.trim()||('Scenario '+new Date().toISOString().slice(0,16).replace('T',' '));
-  try{if(server)await api('/api/scenarios',{name,kind:'suite',payload:ST});
-    else{const l=localScenarios();l.unshift({id:Date.now(),name,kind:'suite',created_at:new Date().toISOString().slice(0,19),payload:clone(ST)});store.set(SC_KEY,JSON.stringify(l.slice(0,30)));}
-    $('scMsg').textContent='Saved.';$('scName').value='';renderScenarios();}catch(e){$('scMsg').textContent='Save failed: '+e.message;}};
+  try{await saveScenario(name,ST);$('scMsg').textContent='Saved.';$('scName').value='';renderScenarios();}catch(e){$('scMsg').textContent='Save failed: '+e.message;}};
+async function saveScenario(name,payload){
+  if(server)await api('/api/scenarios',{name,kind:'suite',payload});
+  else{const l=localScenarios();l.unshift({id:Date.now(),name,kind:'suite',created_at:new Date().toISOString().slice(0,19),payload:clone(payload)});store.set(SC_KEY,JSON.stringify(l.slice(0,30)));}}
 $('apiBase').value=cfg.base;$('apiTenant').value=cfg.tenant;$('apiToken').value=cfg.token;
 $('apiSave').onclick=async()=>{cfg={base:$('apiBase').value.trim().replace(/\/$/,''),tenant:$('apiTenant').value.trim()||'demo',token:$('apiToken').value};
   store.set(CFG_KEY,JSON.stringify(cfg));await detect();planStale=true;renderScenarios();schedRm();};
@@ -540,10 +553,11 @@ function gantt(el,rows,byId,bm,which,avail,hiFn){
     if(r.note)g+=`<text x="${m.l+6}" y="${y+14}" font-size="11" fill="var(--text-muted)">${esc(r.note)}</text>`;
     r.flights.forEach(id=>{const f=byId[String(id)];if(!f)return;const d=E.parseTime(f.dep),a=d+E.parseBlock(f.block);const xa=sx(Math.max(d,x0)),xb=sx(a),w=Math.max(2,xb-xa);
       const chg=hiFn?hiFn(r,f):(which==='prop'&&!!flChange(f,bm));
-      g+=`<rect x="${xa}" y="${y}" width="${w}" height="${rowH-10}" rx="4" fill="${chg?'var(--series-2)':'var(--series-1)'}" data-t="${esc(f.fn)}|${esc(f.org)}-${esc(f.dst)}|${esc(f.dep)}|${E.fmtTime(a)}|${esc(f.fleet)}"/>`;
+      g+=`<rect x="${xa}" y="${y}" width="${w}" height="${rowH-10}" rx="4" fill="${chg?'var(--series-2)':'var(--series-1)'}" data-t="${esc(f.fn)}|${esc(f.org)}-${esc(f.dst)}|${esc(f.dep)}|${E.fmtTime(a)}|${esc(f.fleet)}" data-fid="${esc(f.id)}" style="cursor:pointer"/>`;
       if(w>54)g+=`<text x="${xa+5}" y="${y+14}" font-size="10.5" fill="#fff" pointer-events="none">${esc(f.fn)} ${esc(f.org)}–${esc(f.dst)}</text>`;});});
   el.innerHTML=`<div class="scroll"><svg viewBox="0 0 ${W} ${H}" style="min-width:820px" role="img" aria-label="Aircraft rotations">${g}</svg></div>`;
-  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [fn,rt,d,a,fl]=r.dataset.t.split('|');showTip(e,`<b>${esc(fn)}</b> ${esc(rt)}<br>${esc(d)} → ${esc(a)}<br>${esc(fl)}`);});r.addEventListener('mouseleave',hideTip);});
+  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [fn,rt,d,a,fl]=r.dataset.t.split('|');showTip(e,`<b>${esc(fn)}</b> ${esc(rt)}<br>${esc(d)} → ${esc(a)}<br>${esc(fl)}<br><span class="note">Click to open the flight</span>`);});r.addEventListener('mouseleave',hideTip);
+    r.addEventListener('click',()=>pick(el,{fn:r.dataset.t.split('|')[0],id:r.dataset.fid}));});
 }
 
 // optimised plan -> draft schedule (frequencies and fleets); planners then retime
@@ -790,7 +804,8 @@ function stackChart(el,cats,series,rows){
   g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--text-muted)"/><text transform="translate(13 ${m.t+ih/2}) rotate(-90)" text-anchor="middle" font-size="11.5" fill="var(--text-secondary)">${esc(cur())} per passenger</text>`;
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fare ladder">${g}</svg>`;
   el.querySelectorAll('[data-i]').forEach(r=>{r.addEventListener('mousemove',e=>{const x=rows[+r.dataset.i];
-    showTip(e,`<b>${esc(x.market)} ${esc(x.rbd)}</b><br>Base ${f0(x.base)}${x.surcharge?' · +'+f0(x.surcharge):''}${x.promotion?' · −'+f0(x.promotion):''}<br>Net fare <b>${f0(x.net)}</b><br>`+Object.entries(x.taxes).map(([k,v])=>`${esc(k)} ${f1(v)}`).join(' · ')+`<br>Total <b>${money(x.total)}</b>`);});r.addEventListener('mouseleave',hideTip);});
+    showTip(e,`<b>${esc(x.market)} ${esc(x.rbd)}</b><br>Base ${f0(x.base)}${x.surcharge?' · +'+f0(x.surcharge):''}${x.promotion?' · −'+f0(x.promotion):''}<br>Net fare <b>${f0(x.net)}</b><br>`+Object.entries(x.taxes).map(([k,v])=>`${esc(k)} ${f1(v)}`).join(' · ')+`<br>Total <b>${money(x.total)}</b><br><span class="note">Click to find it in the price list</span>`);});r.addEventListener('mouseleave',hideTip);
+    r.addEventListener('click',()=>{const x=rows[+r.dataset.i];pick(el,{market:x.market,rbd:x.rbd});});});
 }
 $('applyRm').onclick=()=>{if(!lastPrice)return;const by={};lastPrice.rows.forEach(r=>by[r.market+'|'+r.rbd]=r);let n=0;
   ST.rm.prods.forEach(p=>{const r=by[String(p.od).toUpperCase()+'|'+String(p.rbd).toUpperCase()];if(r){p.fare=Math.round(r.net);n++;}});
@@ -836,6 +851,7 @@ function renderComInputs(){
   editTable('chIn',ST.com.channels,[{h:'Channel',k:'channel',l:1,w:160},{h:'Share of sales %',k:'share',num:1},{h:'Cost per segment',k:'cost_seg',num:1},{h:'Commission %',k:'commission',num:1},{h:'Incentive %',k:'incentive',num:1}],renderComInputs,noop);
   editTable('corpIn',ST.com.corporates,[{h:'Corporate',k:'name',l:1,w:170},{h:'Markets',k:'markets',l:1,w:140,up:1},{h:'Discount %',k:'discount',num:1},{h:'Committed pax / year',k:'committed',num:1},{h:'Actual pax to date',k:'actual',num:1},{h:'Months elapsed',k:'months',num:1}],renderComInputs,noop);
   editTable('compIn',ST.com.competitors,[{h:'Market',k:'market',l:1,w:90,up:1},{h:'Carrier',k:'carrier',l:1,w:60,up:1},{h:'Weekly frequency',k:'freq',num:1},{h:'Lowest total fare',k:'fare',num:1},{h:'Observed',k:'date',l:1,date:1}],renderComInputs,noop);
+  renderWhatIfInputs();
   editTable('ilIn',ST.com.interline,[{h:'ID',k:'id',l:1,w:80},{h:'Through fare',k:'fare',num:1},{h:'Passengers',k:'pax',num:1},{h:'Segments',k:'segments',l:1,w:420}],renderComInputs,noop);
 }
 $('addAnc').onclick=()=>{ST.com.ancillaries.push({item:'New item',price:50,take:5,cost_pct:0,markets:'ALL'});save();renderComInputs();schedCom();};
@@ -913,7 +929,47 @@ async function renderCom(R){
     `<tr class="${i===0?'grp':''} ${g.carrier===own?'changed':''}"><td class="l">${i===0?`<b>${esc(r.id)}</b> <span class="note">${money(r.fare)}</span>`:''}</td><td class="l">${esc(g.carrier)}</td><td class="l">${esc(g.sector)}</td><td>${f0(g.miles)}</td><td class="l">${g.method}</td><td>${money(g.share)}</td><td>${pctS(r.fare?g.share/r.fare:0)}</td></tr>`).join('')).join('')+'</tbody>';
   const byC={};IL.rows.forEach(r=>r.segments.forEach(g=>{byC[g.carrier]=(byC[g.carrier]||0)+g.share*r.pax;}));
   $('ilSettle').innerHTML='<thead><tr><th class="l">Carrier</th><th>Revenue due</th><th>Share</th></tr></thead><tbody>'+Object.entries(byC).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr class="${c===own?'changed':''}"><td class="l"><b>${esc(c)}</b>${c===own?' (own)':''}</td><td>${kmoney(v)}</td><td>${pctS(totRev?v/totRev:0)}</td></tr>`).join('')+'</tbody>';
+  renderWhatIf();
 }
+// ---- what-if: live P&L on adjusted copies of the data; nothing is changed until Apply or Save
+const WI_DEF={demand:0,fare:0,elast:0.8,fuel:null,anc:0,cost:0};let WI={...WI_DEF};
+const WI_SL=[['demand','Demand',-40,40,1,v=>(v>0?'+':'')+v+'%'],['fare','Average fare',-30,30,1,v=>(v>0?'+':'')+v+'%'],
+  ['elast','Demand response to fare (elasticity)',0,2,0.1,v=>(+v).toFixed(1)],['fuel','Fuel price index',50,200,5,v=>String(v)],
+  ['cost','Other operating cost per block hour',-20,30,1,v=>(v>0?'+':'')+v+'%'],['anc','Ancillary take rates',-50,100,5,v=>(v>0?'+':'')+v+'%']];
+const wiFuel=()=>WI.fuel==null?num(ST.com.costs.fuel_index,100):WI.fuel;
+const wiActive=()=>WI.demand||WI.fare||WI.anc||WI.cost||wiFuel()!==num(ST.com.costs.fuel_index,100);
+function wiApplyTo(S){const d=WI.demand/100,f=WI.fare/100,dm=(1+d)*Math.pow(1+f,-WI.elast);
+  S.plan.routes.forEach(r=>{r.demand=num(r.demand)*dm;r.fare=num(r.fare)*(1+f);});
+  // fuel is handled by the fuel index; the slider for other cost scales the non-fuel share of cost per BH
+  const fs=num(S.com.costs.fuel_share,35)/100;S.plan.fleets.forEach(fl=>{fl.cost_bh=num(fl.cost_bh)*(fs+(1-fs)*(1+WI.cost/100));});
+  S.com.costs.fuel_index=wiFuel();S.com.ancillaries.forEach(a=>{a.take=Math.min(100,num(a.take)*(1+WI.anc/100));});return S;}
+function wiLabel(){const p=[];WI_SL.forEach(([k,n,,,,fmt])=>{if(k==='elast')return;const v=k==='fuel'?wiFuel():WI[k];if(k==='fuel'?v!==num(ST.com.costs.fuel_index,100):v)p.push(`${n.toLowerCase()} ${fmt(v)}`);});return p.join(', ')||'no change';}
+function renderWhatIfInputs(){
+  $('wiSliders').innerHTML=WI_SL.map(([k,n,lo,hi,st,fmt])=>{const v=k==='fuel'?wiFuel():WI[k];
+    return `<label class="wi"><span>${n}</span><input type="range" min="${lo}" max="${hi}" step="${st}" value="${v}" data-wi="${k}" aria-label="${n}"><output>${fmt(v)}</output></label>`;}).join('');
+  $('wiSliders').querySelectorAll('[data-wi]').forEach(el=>el.oninput=()=>{const k=el.dataset.wi,v=+el.value;WI[k]=v;
+    el.nextElementSibling.textContent=WI_SL.find(x=>x[0]===k)[5](v);renderWhatIf();});}
+function renderWhatIf(){if(!$('wiKpis'))return;
+  const rows=(lastPrice&&lastPrice.rows)||[],basis=comBasis();
+  const B=E.commercialRun(ST.com,ST.plan,rows,basis).pnl,W=E.commercialRun(...(()=>{const S=wiApplyTo({plan:clone(ST.plan),com:clone(ST.com)});return [S.com,S.plan];})(),rows,basis).pnl;
+  const b=B.total,w=W.total,on=wiActive();
+  const dl=(x,y,fmt,good=1)=>{const d=x-y;if(Math.abs(d)<1e-9)return '<span class="note">no change</span>';return `<span class="chg ${(d>0)===(good>0)?'up':'dn'}">${d>0?'+':''}${fmt(d)}</span> vs today`;};
+  const pts=x=>(x*100).toFixed(1)+' pts';
+  $('wiKpis').innerHTML=kpiHtml([['Revenue / week',kmoney(w.revenue),dl(w.revenue,b.revenue,kmoney)],['Operating profit / week',kmoney(w.profit),dl(w.profit,b.profit,kmoney)],
+    ['Margin',pctS(w.margin),dl(w.margin,b.margin,pts)],['Load factor',pctS(w.lf),dl(w.lf,b.lf,pts)],['Passengers / week',f0(w.pax),dl(w.pax,b.pax,f0)],
+    ['CASK',w.cask!=null?w.cask.toFixed(3):'–',w.cask!=null&&b.cask!=null?dl(w.cask,b.cask,x=>x.toFixed(3),-1):'']]);
+  $('wiState').innerHTML=on?`What-if: <b>${esc(wiLabel())}</b>`:'Move a slider to see how profit responds. Frequencies and fleets stay as on the schedule basis.';
+  ['wiApply','wiSave','wiReset'].forEach(id=>$(id).disabled=!on);
+  const wm={};W.rows.forEach(r=>wm[r.route]=r);const rs=B.rows.slice().sort((x,y)=>y.profit-x.profit);
+  barChart($('chWi'),rs.map(r=>r.route),[{name:'Today',color:'var(--series-2)',vals:rs.map(r=>r.profit)},{name:'What-if',color:'var(--series-1)',vals:rs.map(r=>(wm[r.route]||{}).profit??null)}],cur()+' profit per week',v=>money(v),true);}
+$('wiReset').onclick=()=>{WI={...WI_DEF};renderWhatIfInputs();renderWhatIf();};
+$('wiApply').onclick=()=>{if(!wiActive())return;const lab=wiLabel();
+  if(!confirm(`Apply this what-if to your data?\n\n${lab}\n\nThis changes route demand and fares, fleet cost per block hour, the fuel index and ancillary take rates. You can undo it.`))return;
+  const S=wiApplyTo({plan:ST.plan,com:ST.com});S.plan.routes.forEach(r=>{r.demand=Math.round(r.demand);r.fare=Math.round(r.fare);});S.plan.fleets.forEach(f=>f.cost_bh=Math.round(f.cost_bh));
+  S.com.ancillaries.forEach(a=>a.take=Math.round(a.take*10)/10);
+  WI={...WI_DEF};save();planStale=true;renderComInputs();renderWhatIfInputs();schedCom();toast(`Applied: ${lab}. Press Ctrl+Z to undo.`);};
+$('wiSave').onclick=async()=>{if(!wiActive())return;const name='What-if: '+wiLabel();
+  const S=wiApplyTo(clone(ST));try{await saveScenario(name.slice(0,120),S);toast(`Saved scenario "${name}". Load it from Data & scenarios.`);}catch(e){toast('Save failed: '+e.message,'bad');}};
 $('copyPnl').onclick=()=>{if(!lastCom)return;const k=['route','fleet','freq','pax','lf','pax_rev','anc_rev','anc_cost','dist_cost','var_cost','fuel_adj','ownership','overhead','revenue','cost','profit','margin','rask','cask','yield'];
   copy([k.join(','),...lastCom.pnl.rows.map(r=>k.map(x=>typeof r[x]==='number'?r[x].toFixed(4):r[x]).join(','))].join('\n'),$('pnlMsg'));};
 
@@ -1003,6 +1059,7 @@ $('invCopy').onclick=()=>{if(!lastInv)return;const rows=[['date','dow','flight',
   copy(rows.map(r=>r.join(',')).join('\n'),$('invMsg'));};
 
 // ================= charts =================
+const pick=(el,d)=>el.dispatchEvent(new CustomEvent('chartpick',{bubbles:true,detail:d}));
 const tip=$('tip');
 function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const m=v/p;return(m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p;}
 function showTip(e,html){tip.innerHTML=html;tip.style.display='block';const tw=tip.offsetWidth;let lx=e.clientX+14;if(lx+tw>window.innerWidth-8)lx=e.clientX-tw-14;
@@ -1027,7 +1084,8 @@ function barChart(el,cats,series,yTitle,fmt,rotate){
   g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--text-muted)"/>`;
   g+=`<text transform="translate(13 ${m.t+ih/2}) rotate(-90)" text-anchor="middle" font-size="11.5" fill="var(--text-secondary)">${esc(yTitle)}</text>`;
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(yTitle)}">${g}</svg>`;
-  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [c,n,v]=r.dataset.t.split('|');showTip(e,`<b>${esc(c)}</b><br>${esc(n)}: <b>${esc(fmt(+v))}</b>`);});r.addEventListener('mouseleave',hideTip);});
+  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [c,n,v]=r.dataset.t.split('|');showTip(e,`<b>${esc(c)}</b><br>${esc(n)}: <b>${esc(fmt(+v))}</b>`+(el.dataset.pick?'<br><span class="note">Click for details</span>':''));});r.addEventListener('mouseleave',hideTip);
+    r.addEventListener('click',()=>{const [c,n]=r.dataset.t.split('|');pick(el,{cat:c,series:n});});});
 }
 function bhChart(el,cats,opt,curv,budget){
   const W=560,rowH=58,m={l:90,r:60,t:6,b:26},H=m.t+m.b+rowH*cats.length,iw=W-m.l-m.r;
@@ -1041,7 +1099,8 @@ function bhChart(el,cats,opt,curv,budget){
     const bx=sx(budget[i]||0);g+=`<line x1="${bx}" x2="${bx}" y1="${y-4}" y2="${y+2*bh+7}" stroke="var(--text-primary)" stroke-width="2"/>`;
     g+=`<text x="${m.l-10}" y="${y+bh+4}" text-anchor="end" font-size="12" font-weight="600" fill="var(--text-primary)">${esc(c)}</text>`;});
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Block hours by fleet">${g}</svg>`;
-  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [c,n,v,b]=r.dataset.t.split('|');showTip(e,`<b>${esc(c)}</b> · ${esc(n)}<br>${f1(+v)} BH / week<br>Budget ${f0(+b)} BH`);});r.addEventListener('mouseleave',hideTip);});
+  el.querySelectorAll('[data-t]').forEach(r=>{r.addEventListener('mousemove',e=>{const [c,n,v,b]=r.dataset.t.split('|');showTip(e,`<b>${esc(c)}</b> · ${esc(n)}<br>${f1(+v)} BH / week<br>Budget ${f0(+b)} BH`+(el.dataset.pick?'<br><span class="note">Click for details</span>':''));});r.addEventListener('mouseleave',hideTip);
+    r.addEventListener('click',()=>pick(el,{cat:r.dataset.t.split('|')[0]}));});
 }
 function hbarChart(el,cats,vals,fmt,top,loFix){
   const W=560,rowH=40,m={l:200,r:60,t:6,b:24},H=m.t+m.b+rowH*cats.length,iw=W-m.l-m.r;
@@ -1077,5 +1136,7 @@ function lineChart(el,xs,ys,o){
 }
 
 function renderAll(){bindRmTop();bindPlanTop();bindSchedTop();renderLegIn();renderProdIn();renderCurveTbl();renderFleetIn();renderRouteIn();renderBenchmark();planStale=true;route();}
-(async()=>{await detect();renderAll();})();
+window.Suite={undo,redo,canUndo:()=>undoStack.length>0,canRedo:()=>redoStack.length>0,toast,
+  renderFlTbl:()=>renderFlTbl(),route:()=>route()};
+(async()=>{await detect();renderAll();document.dispatchEvent(new CustomEvent('suite:ready'));})();
 })();
