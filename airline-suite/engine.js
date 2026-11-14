@@ -640,22 +640,48 @@ function ruleMatches(rule,f,date,dow,today){
   const days=String(rule.dow||'').split('').filter(c=>'1234567'.includes(c)).join('');if(days&&!days.includes(dow))return false;
   const t0=parseTime(rule.time_from),t1=parseTime(rule.time_to);if(t0!=null&&f.dep%1440<t0)return false;if(t1!=null&&f.dep%1440>t1)return false;
   return true;}
-function invSystem(R){const out={};R.legs.forEach(l=>{const local=R.prods.filter(p=>p.path===l.code).sort((a,b)=>b.fare-a.fare);
-  out[l.code]={bp:l.net,bp_dlp:l.dlp,C:l.C,classes:local.map(p=>({rbd:String(p.rbd).toUpperCase(),fare:p.fare,val:p.val??p.fare,open:!!p.open,seats:Math.round(p.seats)}))};});return out;}
+// System view of each leg for inventory: classes in nest order (highest fare first) with seats sold.
+// Sold counts every booking on the leg in that RBD, local and connecting, as a leg inventory does.
+function invSystem(R){const out={};R.legs.forEach((l,li)=>{const local=R.prods.filter(p=>p.path===l.code).sort((a,b)=>b.fare-a.fare);
+  const sold={};R.prods.forEach(p=>{if(p.li.includes(li)){const r=String(p.rbd).toUpperCase();sold[r]=(sold[r]||0)+num(p.otb);}});
+  out[l.code]={bp:l.net,bp_dlp:l.dlp,C:l.C,cap:num(l.cap),auth:num(l.auth),sold_total:num(l.booked),
+    classes:local.map(p=>{const rbd=String(p.rbd).toUpperCase();return {rbd,fare:p.fare,val:p.val??p.fare,open:!!p.open,seats:Math.round(p.seats),sold:sold[rbd]||0};})};});return out;}
+const invNum=v=>{const s=String(v??'').trim();if(!s)return null;const n=parseFloat(s);return isFinite(n)?Math.max(0,Math.trunc(n)):null;};
+// Availability per class. Manual authorisations (AU) are nested as in Amadeus / Navitaire inventory:
+// a class AU counts seats sold in that class and every lower class, so availability(j) =
+// min over j and all higher classes of (AU - nested sold), and never more than cabin AU - total sold.
 function invEvaluate(sysd,rule,rbds){
-  const mode=rule?String(rule.mode||'manual').toLowerCase():'system',close=rule?invSet(rule.close):[],opn=rule?invSet(rule.open):[],lim=rule?invLimits(rule.limits):{};const classes=[];
+  const mode=rule?String(rule.mode||'manual').toLowerCase():'system',close=rule?invSet(rule.close):[],opn=rule?invSet(rule.open):[],lim=rule?invLimits(rule.limits):{};
+  const au=rule?invLimits(rule.au):{},cabinAu=rule?invNum(rule.cabin_au):null,classes=[];
   if(sysd){const bp=sysd.bp;let bpEff=bp;if(mode==='adjust'&&bp!=null&&isFinite(bp))bpEff=bp*(1+num(rule.bp_pct,0)/100)+num(rule.bp_fixed,0);
-    const cap=Math.max(0,Math.trunc(sysd.C));
-    sysd.classes.forEach(c=>{const sysOpen=c.open,sysSeats=c.seats;let eff=mode==='adjust'?(cap>0&&c.val>=bpEff-1e-6):sysOpen;
-      let src=mode==='system'?'system':(mode==='manual'?'held':'adjusted');
+    const soldTot=num(sysd.sold_total),authSys=sysd.auth!=null?Math.trunc(sysd.auth):null,authEff=cabinAu!=null?cabinAu:authSys;
+    const cap=cabinAu!=null?Math.max(0,cabinAu-soldTot):Math.max(0,Math.trunc(sysd.C));
+    // nested sold: this class and all classes below it
+    let below=0;const nest=sysd.classes.map(c=>c.sold||0).reverse().map(x=>below+=x).reverse();
+    let room=cap,parentAu=authEff;
+    sysd.classes.forEach((c,j)=>{const sysOpen=c.open,sysSeats=c.seats,sn=nest[j];let eff=mode==='adjust'?(cap>0&&c.val>=bpEff-1e-6):sysOpen;
+      let src=mode==='system'?'system':(mode==='manual'?'held':'adjusted');const warn=[];
       if(close.includes(c.rbd)){eff=false;src='analyst';}else if(opn.includes(c.rbd)){eff=cap>0;src='analyst';}
-      let seats=eff?(sysOpen?sysSeats:cap):0;
-      if(eff&&(c.rbd in lim)){seats=Math.min(seats?seats:cap,lim[c.rbd]);src='analyst';eff=seats>0;}
-      classes.push({...c,sys_open:sysOpen,sys_seats:sysSeats,open:eff,seats,source:src,differs:(eff!==sysOpen)||(seats!==(sysOpen?sysSeats:0))});});
-    return {mode,bp,bp_eff:bpEff,remaining:cap,classes,has_system:true};}
-  rbds.forEach(r=>{const st=close.includes(r)?false:(opn.includes(r)?true:null);const seats=st?(lim[r]??null):(st===false?0:null);
-    classes.push({rbd:r,fare:null,val:null,sys_open:null,sys_seats:null,open:st,seats,source:st!=null?'analyst':'none',differs:st!=null});});
-  return {mode,bp:null,bp_eff:null,remaining:null,classes,has_system:false};}
+      let base=eff?(sysOpen?sysSeats:cap):0;
+      const man=c.rbd in au?au[c.rbd]:null;
+      if(man!=null){if(parentAu!=null&&man>parentAu)warn.push(`AU ${man} is above the AU of the class above (${parentAu}); the lower of the two applies`);
+        if(man<sn)warn.push(`AU ${man} is below the ${sn} seats already sold in ${c.rbd} and lower classes`);
+        room=Math.min(room,Math.max(0,man-sn));parentAu=parentAu!=null?Math.min(parentAu,man):man;
+        if(!close.includes(c.rbd)){eff=true;base=room;src='analyst';}}
+      let seats=eff?Math.min(base,room):0;
+      if(eff&&(c.rbd in lim)){seats=Math.min(seats,lim[c.rbd]);src='analyst';}
+      if(eff&&seats<=0)eff=false;if(!eff)seats=0;
+      classes.push({...c,sys_open:sysOpen,sys_seats:sysSeats,sold_nest:sn,sys_au:sysOpen?sn+sysSeats:null,au:man,au_eff:eff?sn+seats:sn,au_warn:warn.join('; '),
+        open:eff,seats,source:src,differs:(eff!==sysOpen)||(seats!==(sysOpen?sysSeats:0))});});
+    return {mode,bp,bp_eff:bpEff,remaining:cap,cabin:{capacity:sysd.cap??null,auth_sys:authSys,auth:authEff,au:cabinAu,sold:soldTot},classes,has_system:true};}
+  // no RM model for this sector: only analyst settings apply (seats sold are unknown here)
+  let room=cabinAu!=null?cabinAu:Infinity;
+  rbds.forEach(r=>{let st=close.includes(r)?false:(opn.includes(r)?true:null),seats=st?(lim[r]??null):(st===false?0:null);const man=r in au?au[r]:null;
+    if(man!=null){room=Math.min(room,man);if(st!==false){st=room>0;seats=room;}}
+    else if(st&&isFinite(room))seats=Math.min(seats??room,room);
+    if(st&&r in lim&&seats!=null)seats=Math.min(seats,lim[r]);
+    classes.push({rbd:r,fare:null,val:null,sys_open:null,sys_seats:null,sold:null,sold_nest:null,sys_au:null,au:man,au_eff:man,au_warn:'',open:st,seats,source:st!=null?'analyst':'none',differs:st!=null});});
+  return {mode,bp:null,bp_eff:null,remaining:cabinAu,cabin:{capacity:null,auth_sys:null,auth:cabinAu,au:cabinAu,sold:null},classes,has_system:false};}
 const invAvs=ev=>ev.classes.map(c=>c.open==null?`${c.rbd}-`:`${c.rbd}${c.open?Math.min(9,c.seats||0):0}`).join(' ');
 function inventoryRun(rmState,sched,inv){
   const R=rmCompute(rmState),sysmap=invSystem(R),rbds=[];(rmState.prods||[]).forEach(p=>{const r=String(p.rbd||'').toUpperCase();if(r&&!rbds.includes(r))rbds.push(r);});
@@ -666,7 +692,7 @@ function inventoryRun(rmState,sched,inv){
     flights.forEach(f=>{if(!f.days.includes(dow))return;const idx=rules.findIndex(r=>ruleMatches(r,f,ds,dow,today));const rule=idx>=0?rules[idx]:null;
       const ev=invEvaluate(sysmap[`${f.org}-${f.dst}`],rule,RB);
       rows.push({date:ds,dow,id:String(f.id),fn:f.fn,sector:`${f.org}-${f.dst}`,dep:fmtTime(f.dep),fleet:f.fleet,mode:ev.mode,rule:idx>=0?idx:null,rule_name:rule?rule.name:null,
-        bp:ev.bp,bp_eff:ev.bp_eff,remaining:ev.remaining,has_system:ev.has_system,classes:ev.classes,avs:invAvs(ev),differs:ev.classes.filter(c=>c.differs).length});});}
+        bp:ev.bp,bp_eff:ev.bp_eff,remaining:ev.remaining,cabin:ev.cabin,has_system:ev.has_system,classes:ev.classes,avs:invAvs(ev),differs:ev.classes.filter(c=>c.differs).length});});}
   const used={};rows.forEach(r=>{if(r.rule!=null)used[r.rule]=(used[r.rule]||0)+1;});
   return {rows,rbds:RB,rules:rules.map((r,i)=>({index:i,name:r.name,flight_dates:used[i]||0,expired:!!(String(r.expires||'').trim()&&today>String(r.expires))})),
     summary:{flight_dates:rows.length,manual:rows.filter(r=>r.mode==='manual').length,adjust:rows.filter(r=>r.mode==='adjust').length,system:rows.filter(r=>r.mode==='system').length,

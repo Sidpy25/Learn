@@ -978,14 +978,15 @@ $('copyPnl').onclick=()=>{if(!lastCom)return;const k=['route','fleet','freq','pa
 let lastInv=null,invTimer=null,invSeq=0,invOpen=null,invShown=null;
 function schedInv(){clearTimeout(invTimer);invTimer=setTimeout(updateInv,server?350:80);}
 async function runInvEngine(){
-  if(server){try{return await api('/api/inventory/run',{rm:ST.rm,sched:ST.sched.prop,inv:ST.inv});}catch(e){console.warn('server inventory failed, using browser',e);}}
+  const usesAu=(ST.inv.rules||[]).some(r=>String(r.au||'').trim()||String(r.cabin_au??'').trim());
+  if(server&&!usesAu){try{return await api('/api/inventory/run',{rm:ST.rm,sched:ST.sched.prop,inv:ST.inv});}catch(e){console.warn('server inventory failed, using browser',e);}}
   return E.inventoryRun(ST.rm,ST.sched.prop,ST.inv);
 }
 async function updateInv(){const seq=++invSeq;const R=await runInvEngine();if(seq!==invSeq)return;
   R.rows.forEach(r=>{if(r.bp==null&&r.has_system)r.bp=Infinity;if(r.bp_eff==null&&r.has_system)r.bp_eff=Infinity;});lastInv=R;renderInv(R);}
 const RULE_COLS=[{h:'Active',k:'active',l:1,opts:['yes','no']},{h:'Name',k:'name',l:1,w:200},{h:'Mode',k:'mode',l:1,opts:['manual','adjust']},{h:'Sectors',k:'sectors',l:1,w:90,up:1},
   {h:'Flights',k:'flights',l:1,w:80,up:1},{h:'From',k:'from',l:1,date:1},{h:'To',k:'to',l:1,date:1},{h:'DOW',k:'dow',l:1,w:70},{h:'Dep from',k:'time_from',l:1,w:60},{h:'Dep to',k:'time_to',l:1,w:60},
-  {h:'Close',k:'close',l:1,w:60,up:1},{h:'Open',k:'open',l:1,w:60,up:1},{h:'Seat limits',k:'limits',l:1,w:80,up:1},{h:'BP %',k:'bp_pct',num:1},{h:'BP amount',k:'bp_fixed',num:1},
+  {h:'Close',k:'close',l:1,w:60,up:1},{h:'Open',k:'open',l:1,w:60,up:1},{h:'Class AUs',k:'au',l:1,w:120,up:1},{h:'Cabin AU',k:'cabin_au',num:1},{h:'Seat limits',k:'limits',l:1,w:80,up:1},{h:'BP %',k:'bp_pct',num:1},{h:'BP amount',k:'bp_fixed',num:1},
   {h:'Owner',k:'owner',l:1,w:90},{h:'Expires',k:'expires',l:1,date:1},{h:'Note',k:'note',l:1,w:220}];
 function renderInvInputs(){
   document.querySelectorAll('[data-inv]').forEach(el=>{el.value=ST.inv[el.dataset.inv]??'';el.oninput=el.onchange=()=>{ST.inv[el.dataset.inv]=el.value;save();schedInv();};});
@@ -998,7 +999,7 @@ const addDaysUI=(ds,k)=>{const d=new Date(ds+'T00:00:00Z');d.setUTCDate(d.getUTC
 $('nrCreate').onclick=()=>{const v=id=>$(id).value.trim();
   if(!v('nrSectors')&&!v('nrFlights')){$('nrMsg').textContent='Give at least a sector pattern or a flight number.';return;}
   const r={active:'yes',name:v('nrName')||`${$('nrMode').value==='manual'?'Manual':'Adjusted'} ${v('nrSectors')||v('nrFlights')}`,mode:$('nrMode').value,sectors:v('nrSectors').toUpperCase()||'ALL',flights:v('nrFlights').toUpperCase(),
-    from:v('nrFrom'),to:v('nrTo'),dow:v('nrDow'),time_from:v('nrT0'),time_to:v('nrT1'),close:v('nrClose').toUpperCase(),open:v('nrOpen').toUpperCase(),limits:v('nrLimits').toUpperCase(),
+    from:v('nrFrom'),to:v('nrTo'),dow:v('nrDow'),time_from:v('nrT0'),time_to:v('nrT1'),close:v('nrClose').toUpperCase(),open:v('nrOpen').toUpperCase(),limits:v('nrLimits').toUpperCase(),au:v('nrAu').toUpperCase(),cabin_au:v('nrCabin'),
     bp_pct:v('nrBpPct'),bp_fixed:v('nrBpFix'),owner:v('nrOwner'),expires:v('nrExpires'),note:v('nrNote')};
   ST.inv.rules.unshift(r);save();renderInvInputs();schedInv();$('nrMsg').textContent=`Rule "${r.name}" created at the top of the list.`;setTimeout(()=>$('nrMsg').textContent='',4000);};
 function invFiltered(R){const sec=$('invFSector').value.trim(),dw=$('invFDow').value.replace(/[^1-7]/g,''),t0=E.parseTime($('invFT0').value),t1=E.parseTime($('invFT1').value),md=$('invFMode').value,only=$('invOnlyModel').checked;
@@ -1018,9 +1019,9 @@ function renderInv(R){
   $('invPrio').querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{const i=+b.dataset.up;[ST.inv.rules[i-1],ST.inv.rules[i]]=[ST.inv.rules[i],ST.inv.rules[i-1]];save();renderInvInputs();schedInv();});
   $('invPrio').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>{const i=+b.dataset.dn;[ST.inv.rules[i+1],ST.inv.rules[i]]=[ST.inv.rules[i],ST.inv.rules[i+1]];save();renderInvInputs();schedInv();});
   const DN=['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  $('invTbl').innerHTML='<thead><tr><th class="l">Date</th><th class="l">Day</th><th class="l">Flight</th><th class="l">Sector</th><th>Dep</th><th class="l">Fleet</th><th class="l">Control</th><th class="l">Rule</th><th>Bid price</th><th>Seats left</th><th class="l">Availability</th><th>Changed classes</th><th></th></tr></thead><tbody>'+
+  $('invTbl').innerHTML='<thead><tr><th class="l">Date</th><th class="l">Day</th><th class="l">Flight</th><th class="l">Sector</th><th>Dep</th><th class="l">Fleet</th><th class="l">Control</th><th class="l">Rule</th><th>Bid price</th><th>Seats left</th><th title="Cabin AU / seats sold">Cabin AU / sold</th><th class="l">Availability</th><th>Changed classes</th><th></th></tr></thead><tbody>'+
     rows.map((r,k)=>`<tr class="${r.mode==='manual'?'diff':(r.mode==='adjust'?'changed':'')}"><td class="l">${esc(r.date)}</td><td class="l">${DN[+r.dow]}</td><td class="l"><b>${esc(r.fn)}</b></td><td class="l">${esc(r.sector)}</td><td>${esc(r.dep)}</td><td class="l">${esc(r.fleet)}</td>
-      <td class="l">${modePill(r.mode)}</td><td class="l small">${esc(r.rule_name||'')}</td><td>${r.has_system?(r.bp_eff!==r.bp?`${money(r.bp)} → <b>${money(r.bp_eff)}</b>`:money(r.bp)):'<span class="note">no model</span>'}</td><td>${r.remaining!=null?f0(r.remaining):'–'}</td>
+      <td class="l">${modePill(r.mode)}</td><td class="l small">${esc(r.rule_name||'')}</td><td>${r.has_system?(r.bp_eff!==r.bp?`${money(r.bp)} → <b>${money(r.bp_eff)}</b>`:money(r.bp)):'<span class="note">no model</span>'}</td><td>${r.remaining!=null?f0(r.remaining):'–'}</td><td>${r.cabin&&r.cabin.auth!=null?`${r.cabin.au!=null?'<b>'+f0(r.cabin.auth)+'</b>':f0(r.cabin.auth)} / ${r.cabin.sold!=null?f0(r.cabin.sold):'–'}`:'–'}</td>
       <td class="l"><code>${esc(r.avs)}</code></td><td>${r.differs||'–'}</td><td><button data-open="${esc(r.date+'|'+r.id)}">Open</button></td></tr>`).join('')+'</tbody>';
   $('invTbl').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{invOpen=b.dataset.open;renderInvDetail();$('invDetail').scrollIntoView({behavior:'smooth',block:'start'});});
   if(invOpen&&invShown!==invOpen)renderInvDetail();
@@ -1032,30 +1033,56 @@ function renderInvDetail(){
   const [date,id]=invOpen.split('|'),r=lastInv.rows.find(x=>x.date===date&&x.id===id);if(!r){$('invDetail').style.display='none';return;}
   $('invDetail').style.display='';
   $('invDetTitle').innerHTML=`${esc(r.fn)} ${esc(r.sector)} · ${esc(r.date)} · dep ${esc(r.dep)} · ${modePill(r.mode)}${r.rule_name?` <span class="note small">rule: ${esc(r.rule_name)}</span>`:''}`;
-  const ov=ST.inv.rules.find(x=>x.name===ovName(r.fn,r.date));
-  $('invDetMode').value=ov?ov.mode:'system';$('invDetBp').value=ov?(ov.bp_pct??''):'';$('invDetNote').value=ov?(ov.note||''):'';
-  const cl=new Set(ov?String(ov.close||'').toUpperCase().split(',').map(x=>x.trim()):[]),op=new Set(ov?String(ov.open||'').toUpperCase().split(',').map(x=>x.trim()):[]),lim={};
-  if(ov)String(ov.limits||'').toUpperCase().split(',').forEach(x=>{const [k,v]=x.split(':');if(k&&v)lim[k.trim()]=v.trim();});
-  $('invDetTbl').innerHTML='<thead><tr><th class="l">RBD</th><th>Net fare</th><th>Value used by RM</th><th class="l">System</th><th class="l">Analyst control</th><th>Seat limit</th><th class="l">Effective</th><th class="l">Set by</th></tr></thead><tbody>'+
-    r.classes.map(c=>`<tr class="${c.differs?'changed':''}"><td class="l"><b>${esc(c.rbd)}</b></td><td>${c.fare!=null?f0(c.fare):'–'}</td><td>${c.val!=null?f0(c.val):'–'}</td>
+  const name=ovName(r.fn,r.date),ov=ST.inv.rules.find(x=>x.name===name);
+  const kv=s=>{const o={};String(s||'').toUpperCase().split(',').forEach(x=>{const [k,v]=x.split(':');if(k&&v!=null&&v.trim()!=='')o[k.trim()]=v.trim();});return o;};
+  const set=s=>new Set(String(s||'').toUpperCase().split(',').map(x=>x.trim()).filter(Boolean));
+  const cl=set(ov&&ov.close),op=set(ov&&ov.open),lim=kv(ov&&ov.limits),au=kv(ov&&ov.au);
+  $('invDetMode').value=ov?ov.mode:'system';$('invDetBp').value=ov?(ov.bp_pct??''):'';$('invDetNote').value=ov?(ov.note||''):'';$('invDetCabin').value=ov?(ov.cabin_au??''):'';
+  const sys=r.has_system,cab=r.cabin||{};
+  $('invDetCabin').placeholder=cab.auth_sys!=null?`system ${cab.auth_sys}`:'none';
+  $('invDetTbl').innerHTML='<thead><tr><th class="l">RBD</th><th>Net fare</th><th>Sold</th><th title="Seats sold in this class and every lower class">Sold incl. lower</th><th>System AU</th><th class="l">System</th><th class="l">Status</th><th title="Nested authorisation: seats this class and all lower classes may sell in total, including seats already sold">AU</th><th title="Cap on this class only (not nested)">Seat limit</th><th>Effective AU</th><th class="l">Availability</th><th class="l">Set by</th></tr></thead><tbody>'+
+    r.classes.map(c=>`<tr data-rbd="${esc(c.rbd)}"><td class="l"><b>${esc(c.rbd)}</b></td><td>${c.fare!=null?f0(c.fare):'–'}</td><td>${c.sold!=null?f0(c.sold):'–'}</td><td>${c.sold_nest!=null?f0(c.sold_nest):'–'}</td>
+      <td>${c.sys_au!=null?f0(c.sys_au):(sys?'<span class="note">closed</span>':'–')}</td>
       <td class="l">${c.sys_open==null?'<span class="note">no model</span>':(c.sys_open?`Open · ${c.sys_seats}`:'Closed')}</td>
-      <td class="l"><select data-c="${esc(c.rbd)}" style="width:auto"><option value="auto">Auto</option><option value="open">Open</option><option value="closed">Closed</option></select></td>
-      <td><input type="number" min="0" data-l="${esc(c.rbd)}" value="${esc(lim[c.rbd]??'')}" placeholder="none" style="width:80px;min-width:80px"></td>
-      <td class="l">${c.open==null?'<span class="note">–</span>':(c.open?`<b>Open · ${c.seats}</b>`:'<b>Closed</b>')}</td><td class="l note">${esc(c.source)}</td></tr>`).join('')+'</tbody>';
+      <td class="l"><select data-c="${esc(c.rbd)}" style="width:auto;min-width:86px" aria-label="Status for ${esc(c.rbd)}"><option value="auto">Auto</option><option value="open">Open</option><option value="closed">Closed</option></select></td>
+      <td><input type="number" min="0" step="1" data-au="${esc(c.rbd)}" value="${esc(au[c.rbd]??'')}" placeholder="${c.sys_au!=null?c.sys_au:'–'}" style="width:76px;min-width:76px" aria-label="AU for ${esc(c.rbd)}"></td>
+      <td><input type="number" min="0" step="1" data-l="${esc(c.rbd)}" value="${esc(lim[c.rbd]??'')}" placeholder="none" style="width:70px;min-width:70px" aria-label="Seat limit for ${esc(c.rbd)}"></td>
+      <td class="ec-au"></td><td class="l ec-av"></td><td class="l note ec-src"></td></tr>`).join('')+'</tbody>';
   $('invDetTbl').querySelectorAll('[data-c]').forEach(el=>el.value=cl.has(el.dataset.c)?'closed':(op.has(el.dataset.c)?'open':'auto'));
-  $('invDetSave').onclick=()=>{const mode=$('invDetMode').value,name=ovName(r.fn,r.date);ST.inv.rules=ST.inv.rules.filter(x=>x.name!==name);
-    if(mode!=='system'){const close=[],open=[],limits=[];
-      $('invDetTbl').querySelectorAll('[data-c]').forEach(el=>{if(el.value==='closed')close.push(el.dataset.c);if(el.value==='open')open.push(el.dataset.c);});
-      $('invDetTbl').querySelectorAll('[data-l]').forEach(el=>{if(el.value!=='')limits.push(`${el.dataset.l}:${el.value}`);});
-      const [o,d]=r.sector.split('-');
-      ST.inv.rules.unshift({active:'yes',name,mode,sectors:r.sector,flights:r.fn,from:r.date,to:r.date,dow:'',time_from:'',time_to:'',close:close.join(','),open:open.join(','),limits:limits.join(','),
-        bp_pct:mode==='adjust'?$('invDetBp').value:'',bp_fixed:'',owner:'',expires:'',note:$('invDetNote').value});}
+  const collect=()=>{const c={close:[],open:[],limits:[],au:[],cabin:$('invDetCabin').value.trim()};
+    $('invDetTbl').querySelectorAll('[data-c]').forEach(el=>{if(el.value==='closed')c.close.push(el.dataset.c);if(el.value==='open')c.open.push(el.dataset.c);});
+    $('invDetTbl').querySelectorAll('[data-l]').forEach(el=>{if(el.value!=='')c.limits.push(`${el.dataset.l}:${el.value}`);});
+    $('invDetTbl').querySelectorAll('[data-au]').forEach(el=>{if(el.value!=='')c.au.push(`${el.dataset.au}:${el.value}`);});return c;};
+  const hasInputs=c=>c.close.length||c.open.length||c.limits.length||c.au.length||c.cabin!=='';
+  const draft=(mode,c)=>({active:'yes',name,mode,sectors:r.sector,flights:r.fn,from:r.date,to:r.date,dow:'',time_from:'',time_to:'',close:c.close.join(','),open:c.open.join(','),
+    limits:c.limits.join(','),au:c.au.join(','),cabin_au:c.cabin,bp_pct:mode==='adjust'?$('invDetBp').value:'',bp_fixed:'',owner:(ov&&ov.owner)||'',expires:'',note:$('invDetNote').value});
+  // entering any analyst setting while on "System" switches the flight-date to manual control
+  const effMode=c=>{let m=$('invDetMode').value;if(m==='system'&&hasInputs(c)){m='manual';$('invDetMode').value='manual';}return m;};
+  const paint=(row,preview)=>{const by={};row.classes.forEach(c=>by[c.rbd]=c);
+    $('invDetTbl').querySelectorAll('tbody tr').forEach(tr=>{const c=by[tr.dataset.rbd];if(!c)return;
+      tr.className=c.differs?'changed':'';
+      tr.querySelector('.ec-au').innerHTML=c.au_eff!=null?(c.au!=null?`<b>${f0(c.au_eff)}</b>`:f0(c.au_eff)):'–';
+      tr.querySelector('.ec-av').innerHTML=(c.open==null?'<span class="note">–</span>':(c.open?`<b>Open · ${c.seats}</b>`:'<b>Closed</b>'))+(c.au_warn?` <span class="chg dn" title="${esc(c.au_warn)}">⚠ ${esc(c.au_warn)}</span>`:'');
+      tr.querySelector('.ec-src').textContent=c.source;});
+    const k=row.cabin||{};
+    $('invDetCabinInfo').innerHTML=row.has_system?`Capacity <b>${f0(k.capacity)}</b> · system AU <b>${f0(k.auth_sys)}</b> (with RM overbooking) · cabin AU in use <b>${f0(k.auth)}</b>${k.au!=null?' <span class="tag p">manual</span>':''} · sold <b>${f0(k.sold)}</b> · seats left to sell <b>${f0(row.remaining)}</b>`
+      :`No RM model for ${esc(row.sector)}: seats sold are unknown here, so AUs are applied as entered${k.au!=null?` (cabin AU ${f0(k.au)})`:''}.`;
+    $('invDetAvs').innerHTML=`Availability: <code>${esc(row.avs)}</code>${preview?' <span class="tag p">preview, not saved</span>':''}`;};
+  const preview=()=>{const c=collect(),m=effMode(c),others=ST.inv.rules.filter(x=>x.name!==name);
+    const rules=m==='system'?others:[draft(m,c),...others];
+    const res=E.inventoryRun(ST.rm,ST.sched.prop,{...ST.inv,start:r.date,days:1,rules});const pr=res.rows.find(x=>x.id===r.id);if(pr)paint(pr,true);};
+  let pt=null;const later=()=>{clearTimeout(pt);pt=setTimeout(preview,120);};
+  $('invDetTbl').querySelectorAll('input,select').forEach(el=>el.oninput=el.onchange=later);
+  ['invDetCabin','invDetMode','invDetBp'].forEach(id=>$(id).oninput=$(id).onchange=later);
+  paint(r,false);
+  $('invDetSave').onclick=()=>{const c=collect(),mode=effMode(c);ST.inv.rules=ST.inv.rules.filter(x=>x.name!==name);
+    if(mode!=='system')ST.inv.rules.unshift(draft(mode,c));
     save();invShown=null;renderInvInputs();updateInv();$('invDetMsg').textContent=mode==='system'?'Override removed: the system controls this flight-date.':'Override saved for this flight-date.';setTimeout(()=>$('invDetMsg').textContent='',4000);};
-  $('invDetClear').onclick=()=>{ST.inv.rules=ST.inv.rules.filter(x=>x.name!==ovName(r.fn,r.date));save();invShown=null;renderInvInputs();updateInv();$('invDetMsg').textContent='Override removed.';};
+  $('invDetClear').onclick=()=>{ST.inv.rules=ST.inv.rules.filter(x=>x.name!==name);save();invShown=null;renderInvInputs();updateInv();$('invDetMsg').textContent='Override removed.';};
 }
 $('invDetClose').onclick=()=>{invOpen=null;invShown=null;$('invDetail').style.display='none';};
-$('invCopy').onclick=()=>{if(!lastInv)return;const rows=[['date','dow','flight','sector','dep','fleet','control','rule','bid_price','bid_price_effective','seats_left','availability']];
-  invFiltered(lastInv).forEach(r=>rows.push([r.date,r.dow,r.fn,r.sector,r.dep,r.fleet,r.mode,r.rule_name||'',r.bp!=null&&isFinite(r.bp)?r.bp.toFixed(2):'',r.bp_eff!=null&&isFinite(r.bp_eff)?r.bp_eff.toFixed(2):'',r.remaining??'',r.avs]));
+$('invCopy').onclick=()=>{if(!lastInv)return;const rows=[['date','dow','flight','sector','dep','fleet','control','rule','bid_price','bid_price_effective','seats_left','cabin_au','sold','availability']];
+  invFiltered(lastInv).forEach(r=>rows.push([r.date,r.dow,r.fn,r.sector,r.dep,r.fleet,r.mode,r.rule_name||'',r.bp!=null&&isFinite(r.bp)?r.bp.toFixed(2):'',r.bp_eff!=null&&isFinite(r.bp_eff)?r.bp_eff.toFixed(2):'',r.remaining??'',r.cabin&&r.cabin.auth!=null?r.cabin.auth:'',r.cabin&&r.cabin.sold!=null?r.cabin.sold:'',r.avs]));
   copy(rows.map(r=>r.join(',')).join('\n'),$('invMsg'));};
 
 // ================= charts =================

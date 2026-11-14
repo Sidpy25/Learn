@@ -256,6 +256,8 @@
         <label class="f">Departure to<input id="nrT1" type="time"></label>
         <label class="f">Close classes<input id="nrClose" type="text" placeholder="V,E"></label>
         <label class="f">Open classes<input id="nrOpen" type="text" placeholder="K"></label>
+        <label class="f">Class AUs (nested)<input id="nrAu" type="text" placeholder="Y:180, M:150, K:120"></label>
+        <label class="f">Cabin AU<input id="nrCabin" type="number" min="0" step="1" placeholder="e.g. 180"></label>
         <label class="f">Seat limits<input id="nrLimits" type="text" placeholder="K:10, V:5"></label>
         <label class="f">Bid price change %<input id="nrBpPct" type="number" step="1" placeholder="adjusted mode"></label>
         <label class="f">Bid price change amount<input id="nrBpFix" type="number" step="10" placeholder="adjusted mode"></label>
@@ -269,18 +271,21 @@
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Control rules</h2><span class="note">First matching active rule wins</span></div>
       <div id="invPrio" style="margin-bottom:10px"></div>
       <div class="scroll"><table id="ruleIn"></table></div>
-      <p class="hint">Sectors use the same patterns as pricing (ALL, RUH-JED, RUH-*, *-CAI). Days of week: 1 = Monday … 7 = Sunday. Times are departure times in the schedule time reference. Seat limits cap the seats a class may sell (e.g. <code>K:10</code>). A rule past its expiry date stops applying automatically.</p>
+      <p class="hint">Sectors use the same patterns as pricing (ALL, RUH-JED, RUH-*, *-CAI). Days of week: 1 = Monday … 7 = Sunday. Times are departure times in the schedule time reference. Class AUs are nested authorisations including seats already sold (e.g. <code>M:150, K:120</code>: M and everything below may hold 150 seats in total, K and below 120). Cabin AU replaces the system overbooking. Seat limits cap one class only and are not nested (e.g. <code>K:10</code>). A rule past its expiry date stops applying automatically.</p>
     </div>
     <div class="card" id="invDetail" style="display:none">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0" id="invDetTitle"></h2><button id="invDetClose">Close</button></div>
       <div class="fields" style="margin-bottom:10px">
         <label class="f">Control for this flight-date<select id="invDetMode"><option value="system">System (no override)</option><option value="manual">Manual (optimisation off)</option><option value="adjust">Adjusted (optimisation on)</option></select></label>
         <label class="f">Bid price change %<input id="invDetBp" type="number" step="1"></label>
+        <label class="f">Cabin AU (capacity + overbooking)<input id="invDetCabin" type="number" min="0" step="1"></label>
         <label class="f">Note<input id="invDetNote" type="text" placeholder="reason for the override"></label>
       </div>
+      <p class="note" id="invDetCabinInfo" style="margin:0 0 8px"></p>
       <div class="scroll"><table id="invDetTbl"></table></div>
+      <p class="note" id="invDetAvs" style="margin:8px 0 0"></p>
       <div class="row" style="margin-top:10px"><button class="primary" id="invDetSave">Save override for this flight-date</button><button id="invDetClear">Remove this flight-date's override</button><span class="msg" id="invDetMsg"></span></div>
-      <p class="hint">Saving creates or updates a rule for just this flight number and date, at the top of the list. Classes set to "Auto" follow the system (adjusted mode) or are held at the system value (manual mode).</p>
+      <p class="hint"><b>AU</b> (authorisation) is nested, as in Amadeus or Navitaire inventory: it is the total seats this class and every lower class may sell, including seats already sold. Availability for a class = the smallest of (AU − sold incl. lower) for that class and every class above it, and never more than cabin AU − total sold. Lowering M's AU therefore also limits K, V and E; raising a closed class's AU above its sold count opens it. <b>Seat limit</b> caps one class only and is not nested. <b>Cabin AU</b> replaces the system overbooking for this flight-date. Extra cabin seats only reach a class whose own AU (and the AUs above it) leave room, so to sell overbooked seats in Y, raise Y's AU too. Leave a field blank to keep the system value. Changes preview straight away; saving creates or updates a rule for just this flight number and date, at the top of the list.</p>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Flight-dates</h2><div class="row"><button id="invCopy">Copy CSV</button><span class="msg" id="invMsg"></span></div></div>
