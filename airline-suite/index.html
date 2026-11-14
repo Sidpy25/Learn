@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airline Network Suite: RM &amp; Fleet Planning</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>Airline Network Suite</h1>
+      <p class="sub" style="margin-bottom:10px">Network revenue management and fleet block-hour planning in one place: RM sets bid prices and seat availability across the O&amp;D network, and planning decides where each fleet's block hours earn the most, using the same demand and fares.</p>
+    </div>
+    <span class="badge" id="engineBadge"><span class="d"></span><span id="engineTxt">Checking engine…</span></span>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <span class="grp">Commercial</span>
+    <a href="#com-dash">Dashboard</a>
+    <a href="#com-pnl">Route profitability</a>
+    <a href="#com-anc">Ancillaries &amp; sales</a>
+    <a href="#com-market">Market intelligence</a>
+    <a href="#com-interline">Interline</a>
+    <span class="grp">Revenue mgmt</span>
+    <a href="#rm-setup">Network &amp; demand</a>
+    <a href="#rm-results">Bid prices</a>
+    <a href="#rm-sim">Simulation</a>
+    <a href="#rm-inv">Inventory control</a>
+    <span class="grp">Network planning</span>
+    <a href="#plan-setup">Fleet &amp; routes</a>
+    <a href="#plan-results">Block-hour plan</a>
+    <a href="#plan-sched">Schedule changes</a>
+    <span class="grp">Pricing</span>
+    <a href="#price-setup">Fare setup</a>
+    <a href="#price-list">Price list</a>
+    <span class="grp">Operations</span>
+    <a href="#ops-tails">Aircraft rotations</a>
+    <a href="#ops-crew">Crew pairing &amp; roster</a>
+    <span class="grp">More</span>
+    <a href="#benchmark">Benchmark</a>
+    <a href="#data">Data &amp; scenarios</a>
+  </nav>
+
+  <!-- ============ COMMERCIAL: DASHBOARD ============ -->
+  <section class="view" id="v-com-dash">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><div class="note" id="dashMeta"></div>
+      <div class="row"><label class="row note">Schedule basis <select data-com="basis" style="width:auto"><option value="current">Current schedule</option><option value="optimised">Optimised plan</option></select></label><button id="dashRefresh">Refresh</button></div></div>
+    <div class="kpis" id="dashKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Weekly profit by route</h2><div class="chart" id="chDashProfit"></div></div>
+      <div class="card"><h2>Where the revenue goes (per week)</h2><div class="chart" id="chDashCost"></div></div>
+    </div>
+    <div class="card"><h2>Alerts across the suite</h2><div id="dashAlerts" class="note"></div></div>
+    <div class="card"><h2>Budget targets</h2><div class="fields">
+      <label class="f">Revenue per week<input data-bud="revenue_wk" type="number" step="100000"></label>
+      <label class="f">Load factor %<input data-bud="lf" type="number" step="1"></label>
+      <label class="f">CASK<input data-bud="cask" type="number" step="0.01"></label>
+      <label class="f">Profit margin %<input data-bud="margin" type="number" step="1"></label></div>
+      <p class="hint">Targets are compared with the weekly network P&amp;L on the chosen schedule basis.</p></div>
+  </section>
+
+  <!-- ============ COMMERCIAL: ROUTE P&L ============ -->
+  <section class="view" id="v-com-pnl">
+    <div class="card"><h2>Route profitability</h2>
+      <p class="note" style="margin-top:-4px">Weekly P&amp;L per route: passenger revenue (planning demand and fares) + ancillary revenue − ancillary cost − distribution cost − variable operating cost (with a fuel-price adjustment) − aircraft ownership (fleet lease shared by block hours) − overheads. Uses route distance for ASK/RPK.</p>
+      <div class="fields">
+        <label class="f">Schedule basis<select data-com="basis"><option value="current">Current schedule</option><option value="optimised">Optimised plan</option></select></label>
+        <label class="f">Fuel share of cost per BH %<input data-cost="fuel_share" type="number" min="0" max="100" step="1"></label>
+        <label class="f">Fuel price index (100 = as costed)<input data-cost="fuel_index" type="number" min="0" step="5"></label>
+        <label class="f">Overheads % of revenue<input data-cost="overhead_pct" type="number" min="0" step="1"></label>
+      </div>
+      <div class="scroll" style="margin-top:10px"><table id="leaseIn"></table></div>
+    </div>
+    <div class="kpis" id="pnlKpis"></div>
+    <div class="card"><h2>Profit by route</h2><div class="chart" id="chPnl" style="max-width:900px"></div></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Route P&amp;L (per week)</h2><div class="row"><button id="copyPnl">Copy CSV</button><span class="msg" id="pnlMsg"></span></div></div>
+      <div class="scroll"><table id="pnlTbl"></table></div>
+      <p class="hint">Route distance is set in Network planning → Fleet &amp; routes. RASK / CASK per available seat-km; yield per revenue passenger-km.</p></div>
+  </section>
+
+  <!-- ============ COMMERCIAL: ANCILLARIES & SALES ============ -->
+  <section class="view" id="v-com-anc">
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Ancillary catalogue</h2><button id="addAnc">+ Add item</button></div>
+      <div class="scroll"><table id="ancIn"></table></div>
+      <p class="hint">Take rate = share of passengers who buy it. Cost % = cost of providing it (e.g. catering). Markets as in pricing (ALL, RUH-JED, *-CAI).</p></div>
+    <div class="kpis" id="ancKpis"></div>
+    <div class="card"><h2>Ancillary revenue per passenger by route</h2><div class="scroll"><table id="ancOut"></table></div></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Sales channels &amp; distribution cost</h2><button id="addCh">+ Add channel</button></div>
+      <div class="scroll"><table id="chIn"></table></div><div id="chOut" class="note" style="margin-top:8px"></div>
+      <p class="hint">Cost per segment = GDS/NDC/payment fees per passenger segment; commission and incentive as % of the fare.</p></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Corporate contracts</h2><button id="addCorp">+ Add contract</button></div>
+      <div class="scroll"><table id="corpIn"></table></div>
+      <div class="scroll" style="margin-top:10px"><table id="corpOut"></table></div></div>
+  </section>
+
+  <!-- ============ COMMERCIAL: MARKET ============ -->
+  <section class="view" id="v-com-market">
+    <div class="card"><h2>Market intelligence</h2>
+      <p class="note" style="margin-top:-4px">Competitor weekly frequencies and lowest fares (for example from your fare scrapers) against your own frequency (planning) and lowest total price (price list). Estimated share ∝ frequency<sup>a</sup> × (fare ÷ cheapest fare)<sup>−b</sup>: a simple quality-of-service model, not a calibrated QSI.</p>
+      <div class="fields"><label class="f">Own carrier code<input data-com="own_carrier" type="text"></label>
+        <label class="f">Frequency power a<input data-com="share_alpha" type="number" step="0.1"></label>
+        <label class="f">Price sensitivity b<input data-com="share_beta" type="number" step="0.1"></label></div></div>
+    <div class="kpis" id="mktKpis"></div>
+    <div class="card"><h2>Position by market</h2><div class="scroll"><table id="mktOut"></table></div></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Competitor data</h2><div class="row"><button id="addComp">+ Add row</button><button id="compCsvBtn">Paste CSV</button></div></div>
+      <div class="scroll"><table id="compIn"></table></div>
+      <div id="compCsvBox" style="display:none;margin-top:10px"><textarea id="compCsv" placeholder="market,carrier,freq,fare,date"></textarea><div class="row" style="margin-top:6px"><button class="primary" id="compCsvLoad">Load (replaces table)</button></div></div>
+      <p class="hint">Fare = competitor's lowest total price (including taxes) for the same market and comparable date.</p></div>
+  </section>
+
+  <!-- ============ COMMERCIAL: INTERLINE ============ -->
+  <section class="view" id="v-com-interline">
+    <div class="card"><h2>Interline &amp; codeshare prorate</h2>
+      <p class="note" style="margin-top:-4px">Splits through fares between carriers: special prorate agreement (SPA) amounts are taken first, the remainder is shared by mileage (straight-rate prorate). Segments: <code>CARRIER:SECTOR:MILES</code>, optionally <code>:SPA=amount</code>, separated by <code>;</code>.</p></div>
+    <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Itineraries</h2><button id="addIl">+ Add itinerary</button></div>
+      <div class="scroll"><table id="ilIn"></table></div></div>
+    <div class="kpis" id="ilKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Prorated shares</h2><div class="scroll"><table id="ilOut"></table></div></div>
+      <div class="card"><h2>Settlement by carrier</h2><div class="scroll"><table id="ilSettle"></table></div>
+        <p class="hint">Revenue due to each carrier for all passengers on these itineraries. In revenue accounting, the ticketing carrier pays the others their share.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ RM SETUP ============ -->
+  <section class="view" id="v-rm-setup">
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="fields">
+        <label class="f">Days to departure<input data-rm="dtd" type="number" min="0" step="1"></label>
+        <label class="f">Overbooking %<input data-rm="ob" type="number" min="0" step="0.5"></label>
+        <label class="f">Pickup weight (0–1)<input data-rm="w" type="number" min="0" max="1" step="0.05"></label>
+        <label class="f">Variance-to-mean ratio<input data-rm="vmr" type="number" min="0" step="0.1"></label>
+        <label class="f">Control method<select data-rm="method"><option value="emsr">Network EMSR (displacement-adjusted)</option><option value="dlp">Network LP (shadow prices)</option></select></label>
+        <label class="f">Currency<input data-rm="cur" type="text"></label>
+      </div>
+      <p class="hint">Demand to come = weight × historical pickup + (1 − weight) × booked ÷ booking-curve %. Variance-to-mean ratio 1 = Poisson; higher = more volatile demand.</p>
+      <h3>Demand adjustments &amp; overbooking</h3>
+      <div class="fields">
+        <label class="f">Seasonality index (1 = normal)<input data-rm="season" type="number" min="0" step="0.05"></label>
+        <label class="f">Event uplift %<input data-rm="event" type="number" step="1"></label>
+        <label class="f">Overbooking<select data-rm="ob_mode"><option value="manual">Manual % (above)</option><option value="auto">Optimised from no-show rate</option></select></label>
+        <label class="f">Denied-boarding cost per passenger<input data-rm="db_cost" type="number" min="0" step="50"></label>
+      </div>
+      <p class="hint">Seasonality and event uplift scale the demand still to come for this departure (e.g. 1.2 for peak season, +15% for an exhibition). Optimised overbooking keeps adding seats while the expected fare of one more booking exceeds the expected denied-boarding cost, using each leg's no-show rate. History for classes that closed early is unconstrained: enter the days-to-departure at which the class closed in history, and its demand is scaled up by the booking curve (max ×3).</p>
+      <h3>Buy-down model</h3>
+      <div class="fields">
+        <label class="f">Fare adjustment in controls<select data-rm="bd_on"><option value="yes">On: value classes with buy-down</option><option value="no">Off: independent class demand</option></select></label>
+        <label class="f">Price-oriented share of demand (0–1)<input data-rm="alpha" type="number" min="0" max="1" step="0.05"></label>
+        <label class="f">FRAT5 (fare ratio at which 50% sell up)<input data-rm="frat5" type="number" min="1.05" step="0.1"></label>
+      </div>
+      <p class="hint">Price-oriented customers buy the cheapest open fare on their O&amp;D. If it is closed, they pay more only within their willingness to pay; the share who sell up from the lowest fare f<sub>low</sub> to fare f is exp(−β(f/f<sub>low</sub> − 1)), with β = ln 2 ÷ (FRAT5 − 1). The forecast splits demand into product-oriented demand (stays in its class) and price-oriented demand (share × total, spread by the sell-up curve). With fare adjustment on, each class is valued at its marginal revenue: the fare minus the revenue lost from customers who would otherwise have paid more. This stops the "spiral-down" where low classes keep selling to customers who would have paid more. Typical values: 0.3–0.6 price-oriented share for fenced network carriers, higher for fenceless low-cost fares; FRAT5 1.5–3.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Legs (one departure each)</h2><button id="addLeg">+ Add leg</button></div>
+      <div class="scroll"><table id="legIn"></table></div>
+      <p class="hint">Distance is used only to prorate connecting fares for the leg-based comparison. "Your RMS bid price" is optional, for benchmarking against Amadeus or another RMS.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">O&amp;D fare products</h2>
+        <div class="row"><button id="addProd">+ Add product</button><button id="resetRm">Reset RM example</button></div></div>
+      <div class="scroll"><table id="prodIn"></table></div>
+      <p class="hint">Path = legs used, joined with <code>&gt;</code>. Fare = net fare for the whole itinerary. Historical final = average final bookings on comparable departures.</p>
+    </div>
+  </section>
+
+  <!-- ============ RM RESULTS ============ -->
+  <section class="view" id="v-rm-results">
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <h2>Leg bid prices</h2>
+      <div class="scroll"><table id="legOut"></table></div>
+      <p class="hint">Network EMSR = EMSR-b on each leg, valuing every itinerary at its fare minus the bid prices of its other legs, iterated until stable. Network LP = shadow price of leg capacity in the network linear programme. Leg-only = EMSR-b with distance-prorated fares (segment control).</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Bid price by leg and method</h2><div class="legend" id="bpLegend"></div><div class="chart" id="chBp"></div></div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><h2 style="margin:0">EMSR seat-value curve</h2><select id="curveLeg" style="width:auto"></select></div>
+        <div class="chart" id="chCurve" style="margin-top:8px"></div>
+        <p class="hint">Value of each remaining seat on the leg, network-adjusted. Bid price = value of the last remaining seat.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Group request evaluator</h2>
+      <div class="fields">
+        <label class="f">Itinerary (path)<select id="grpPath"></select></label>
+        <label class="f">Seats requested<input id="grpSeats" type="number" min="1" step="1" value="20"></label>
+        <label class="f">Offered net fare per passenger<input id="grpFare" type="number" min="0" step="10" value="450"></label>
+        <label class="f">&nbsp;<button class="primary" id="grpGo">Evaluate</button></label>
+      </div>
+      <div id="grpOut" class="note" style="margin-top:10px"></div>
+      <p class="hint">Displacement = the expected revenue of the seats the group would take on every leg (the top of each leg's seat-value curve, from the last remaining seat downwards). Accept if the group pays at least that, per passenger; ancillary spend and the probability of group attrition are not included.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Itinerary decisions</h2>
+        <div class="row"><label class="row note"><input type="checkbox" id="onlyDiff" style="width:auto"> Only where network and leg-based disagree</label><button id="copyRes">Copy CSV</button><span class="msg" id="copyMsg"></span></div></div>
+      <div class="scroll"><table id="prodOut"></table></div>
+      <p class="hint">Highlighted rows: network and leg-based control decide differently. This is where O&amp;D control earns its extra revenue.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">O&amp;D availability (AVS-style)</h2><button id="copyAvs">Copy</button></div>
+      <div class="avs" id="avs"></div>
+      <p class="hint">Seats per class per O&amp;D, capped at 9. 0 = closed.</p>
+    </div>
+  </section>
+
+  <!-- ============ RM INVENTORY CONTROL ============ -->
+  <section class="view" id="v-rm-inv">
+    <div class="card">
+      <h2>Inventory control</h2>
+      <p class="note" style="margin-top:-4px">Every flight on every date in the horizon is controlled by the system unless an analyst rule takes over. <b>Manual</b> turns system optimisation off for the matching flights: the analyst opens or closes classes and caps seats; classes not mentioned are held at the current system value. <b>Adjusted</b> keeps optimisation on but moves the bid price (± % or amount) and can force classes open or closed. Rules are checked top to bottom; the first match wins.</p>
+      <div class="fields">
+        <label class="f">Horizon start<input data-inv="start" type="date"></label>
+        <label class="f">Days<input data-inv="days" type="number" min="1" max="120" step="1"></label>
+        <label class="f">Today (for rule expiry)<input data-inv="today" type="date"></label>
+        <label class="f">Filter sector<input id="invFSector" type="text" placeholder="e.g. RUH-JED or *-CAI"></label>
+        <label class="f">Filter days of week<input id="invFDow" type="text" placeholder="1234567"></label>
+        <label class="f">Departure from<input id="invFT0" type="time"></label>
+        <label class="f">Departure to<input id="invFT1" type="time"></label>
+        <label class="f">Control<select id="invFMode"><option value="">All</option><option value="manual">Manual</option><option value="adjust">Adjusted</option><option value="system">System</option></select></label>
+      </div>
+      <label class="row note" style="margin-top:10px"><input type="checkbox" id="invOnlyModel" style="width:auto" checked> Only sectors covered by the RM network (others have no system recommendation)</label>
+    </div>
+    <div class="kpis" id="invKpis"></div>
+    <div class="card">
+      <h2>Take control of flights</h2>
+      <div class="fields">
+        <label class="f">Rule name<input id="nrName" type="text" placeholder="e.g. Hajj return peak"></label>
+        <label class="f">Mode<select id="nrMode"><option value="manual">Manual (system optimisation off)</option><option value="adjust">Adjusted (system on, analyst influence)</option></select></label>
+        <label class="f">Sectors<input id="nrSectors" type="text" placeholder="RUH-JED, *-CAI or ALL"></label>
+        <label class="f">Flight numbers<input id="nrFlights" type="text" placeholder="blank = any"></label>
+        <label class="f">From date<input id="nrFrom" type="date"></label>
+        <label class="f">To date<input id="nrTo" type="date"></label>
+        <label class="f">Days of week<input id="nrDow" type="text" placeholder="e.g. 567 (blank = all)"></label>
+        <label class="f">Departure from<input id="nrT0" type="time"></label>
+        <label class="f">Departure to<input id="nrT1" type="time"></label>
+        <label class="f">Close classes<input id="nrClose" type="text" placeholder="V,E"></label>
+        <label class="f">Open classes<input id="nrOpen" type="text" placeholder="K"></label>
+        <label class="f">Seat limits<input id="nrLimits" type="text" placeholder="K:10, V:5"></label>
+        <label class="f">Bid price change %<input id="nrBpPct" type="number" step="1" placeholder="adjusted mode"></label>
+        <label class="f">Bid price change amount<input id="nrBpFix" type="number" step="10" placeholder="adjusted mode"></label>
+        <label class="f">Owner<input id="nrOwner" type="text"></label>
+        <label class="f">Expires<input id="nrExpires" type="date"></label>
+      </div>
+      <label class="f" style="margin-top:10px">Reason / note<input id="nrNote" type="text"></label>
+      <div class="row" style="margin-top:10px"><button class="primary" id="nrCreate">Create rule (top priority)</button><button id="nrFromFilter">Use current filters</button><span class="msg" id="nrMsg"></span></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Control rules</h2><span class="note">First matching active rule wins</span></div>
+      <div id="invPrio" style="margin-bottom:10px"></div>
+      <div class="scroll"><table id="ruleIn"></table></div>
+      <p class="hint">Sectors use the same patterns as pricing (ALL, RUH-JED, RUH-*, *-CAI). Days of week: 1 = Monday … 7 = Sunday. Times are departure times in the schedule time reference. Seat limits cap the seats a class may sell (e.g. <code>K:10</code>). A rule past its expiry date stops applying automatically.</p>
+    </div>
+    <div class="card" id="invDetail" style="display:none">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0" id="invDetTitle"></h2><button id="invDetClose">Close</button></div>
+      <div class="fields" style="margin-bottom:10px">
+        <label class="f">Control for this flight-date<select id="invDetMode"><option value="system">System (no override)</option><option value="manual">Manual (optimisation off)</option><option value="adjust">Adjusted (optimisation on)</option></select></label>
+        <label class="f">Bid price change %<input id="invDetBp" type="number" step="1"></label>
+        <label class="f">Note<input id="invDetNote" type="text" placeholder="reason for the override"></label>
+      </div>
+      <div class="scroll"><table id="invDetTbl"></table></div>
+      <div class="row" style="margin-top:10px"><button class="primary" id="invDetSave">Save override for this flight-date</button><button id="invDetClear">Remove this flight-date's override</button><span class="msg" id="invDetMsg"></span></div>
+      <p class="hint">Saving creates or updates a rule for just this flight number and date, at the top of the list. Classes set to "Auto" follow the system (adjusted mode) or are held at the system value (manual mode).</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Flight-dates</h2><div class="row"><button id="invCopy">Copy CSV</button><span class="msg" id="invMsg"></span></div></div>
+      <div class="scroll tall"><table id="invTbl"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ RM SIM ============ -->
+  <section class="view" id="v-rm-sim">
+    <div class="card">
+      <h2>Monte Carlo revenue simulation</h2>
+      <div class="fields">
+        <label class="f">Simulation runs<input id="runs" type="number" min="10" max="3000" step="50" value="500"></label>
+        <label class="f">Low fares book first (0–1)<input id="lbh" type="number" min="0" max="1" step="0.1" value="0.7"></label>
+        <label class="f">Random seed<input id="seed" type="number" step="1" value="42"></label>
+        <label class="f">&nbsp;<button class="primary" id="runSim">Run simulation</button></label>
+      </div>
+      <p class="hint">Each run draws demand still to come and applies each control method to the same customers. Product-oriented customers ask for their class; price-oriented customers buy the cheapest class available to them within their willingness to pay (the buy-down settings define the market). Run it with the price-oriented share at 0 and at a realistic value to see where fare adjustment earns its keep. Perfect hindsight = the best revenue possible had the run's demand been known in advance. EMSR methods use nested booking limits; the LP method uses fixed bid prices. No re-optimisation during a run, so a live system that re-optimises will do somewhat better.</p>
+    </div>
+    <div class="kpis" id="simKpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Revenue to come, % of perfect hindsight</h2><div class="chart" id="chSim"></div></div>
+      <div class="card"><h2>Results by method</h2><div class="scroll"><table id="simTbl"></table></div></div>
+    </div>
+  </section>
+
+  <!-- ============ PLAN SETUP ============ -->
+  <section class="view" id="v-plan-setup">
+    <div class="card">
+      <h2>Planning settings</h2>
+      <div class="fields">
+        <label class="f">Block-hour budget<select data-pp="bh_mode"><option value="fleet">Full fleet capacity (aircraft × utilisation)</option><option value="current">Re-allocate today's block hours only</option></select></label>
+        <label class="f">Fleet per route<select data-pp="lock_fleet"><option value="no">Optimiser may swap fleets</option><option value="yes">Keep current fleet on each route</option></select></label>
+        <label class="f">Frequency elasticity<input data-pp="elasticity" type="number" min="0" max="1.5" step="0.05"></label>
+        <label class="f">Demand variability per flight (CV)<input data-pp="cv" type="number" min="0" max="1.5" step="0.05"></label>
+        <label class="f">&nbsp;<button class="primary" id="goPlan">Optimise block hours →</button></label>
+      </div>
+      <p class="hint">Frequency elasticity: 0.3 means doubling frequency grows route demand by about 23% (2<sup>0.3</sup>). Demand variability: day-to-day spread of demand per departure (0.35 is typical); it drives spill when flights fill.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fleets</h2><button id="addFleet">+ Add fleet</button></div>
+      <div class="scroll"><table id="fleetIn"></table></div>
+      <p class="hint">Cost per block hour = variable operating cost (fuel, maintenance, crew, navigation). Fee per departure = airport, handling and other per-flight charges. Weekly block-hour budget = aircraft × utilisation × 7.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Routes (round trips)</h2>
+        <div class="row"><button id="syncRm" title="Use demand and prorated fares from the RM network for matching routes">⇄ Pull demand &amp; fares from RM</button><button id="addRoute">+ Add route</button><button id="resetPlan">Reset planning example</button></div></div>
+      <div class="scroll"><table id="routeIn"></table></div>
+      <div class="msg" id="syncMsg"></div>
+      <p class="hint">Frequencies are weekly round trips. Demand = passengers per week per direction at the current frequency. Net fare = average net revenue per passenger per direction (for connecting traffic, the prorated share). Allowed fleets: "all" or a comma list such as <code>A320neo,A321neo</code>.</p>
+    </div>
+  </section>
+
+  <!-- ============ PLAN RESULTS ============ -->
+  <section class="view" id="v-plan-results">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div class="note" id="planMeta"></div>
+      <div class="row"><button class="primary" id="runPlan">Re-optimise</button><button id="copyPlan">Copy schedule CSV</button><button id="applyPlan" title="Copy optimised frequencies and fleets into the current schedule">Adopt as current schedule</button><span class="msg" id="planMsg"></span></div>
+    </div>
+    <div class="kpis" id="planKpis"></div>
+    <div class="card"><h2>Fleets</h2><div class="scroll"><table id="fleetOut"></table></div>
+      <p class="hint">Value of one more aircraft = extra weekly contribution if the fleet had one more aircraft at the same utilisation. Divided by its weekly block hours it gives the value of an extra block hour: a guide for wet-lease, utilisation and maintenance-slot decisions.</p></div>
+    <div class="grid2">
+      <div class="card"><h2>Block hours by fleet</h2><div class="legend"><span><i style="background:var(--series-1)"></i>Optimised</span><span><i style="background:var(--series-2)"></i>Current schedule</span><span><i style="background:var(--text-muted);height:2px;vertical-align:3px"></i>Budget</span></div><div class="chart" id="chBh"></div></div>
+      <div class="card"><h2>Contribution per block hour, by route</h2><div class="chart" id="chCpb"></div></div>
+    </div>
+    <div class="card"><h2>Optimised schedule</h2><div class="scroll"><table id="routeOut"></table></div>
+      <p class="hint">Contribution = revenue − variable operating cost (before fixed costs such as aircraft ownership and overheads). Next frequency = extra contribution per block hour from adding one more weekly round trip: routes at the top of this list are first in line for extra hours.</p></div>
+  </section>
+
+  <!-- ============ SCHEDULE CHANGES ============ -->
+  <section class="view" id="v-plan-sched">
+    <div class="card">
+      <h2>Schedule changes</h2>
+      <p class="note" style="margin-top:-4px">Edit the <b>proposed</b> schedule: retime flights, change aircraft type or operating days, add or cancel flights. Every change is checked against the <b>baseline</b> for aircraft rotations, block hours, hub connections, RM connecting O&amp;Ds and route contribution. All times use one reference (for example UTC or hub local time).</p>
+      <div class="fields">
+        <label class="f">Hubs<input data-sp="hubs" type="text" placeholder="JED,RUH"></label>
+        <label class="f">Min connect time (min)<input data-sp="mct" type="number" min="0" step="5"></label>
+        <label class="f">Max connect time (min)<input data-sp="maxc" type="number" min="0" step="15"></label>
+        <label class="f">Schedule time reference (UTC offset)<input data-sp="utc_offset" type="text" placeholder="+0300"></label>
+        <label class="f">Season from<input data-sp="period_from" type="date"></label>
+        <label class="f">Season to<input data-sp="period_to" type="date"></label>
+      </div>
+      <label class="f" style="margin-top:10px">Station UTC offsets (for SSIM local times)<input id="stnOffsets" type="text" placeholder="RUH:+0300, CAI:+0200"></label>
+      <div class="row" style="margin-top:12px">
+        <button id="addFlight">+ Add flight</button>
+        <button id="draftFromPlan" title="Add, cancel or re-equip flights so weekly frequencies match the optimised block-hour plan">Build draft from optimised plan</button>
+        <button id="pushToPlan" title="Copy the proposed schedule's weekly frequencies and fleets into the planning routes">Push frequencies to planning</button>
+        <button id="setBaseline">Set proposed as baseline</button>
+        <button id="resetProp">Reset proposed to baseline</button>
+        <button id="copyChanges">Copy change list CSV</button>
+        <button id="ssimExport">Export SSIM</button>
+        <button id="ssimImportBtn">Import SSIM</button><input type="file" id="ssimFile" accept=".ssim,.txt,.dat" style="display:none">
+        <span class="msg" id="schedMsg"></span>
+      </div>
+    </div>
+    <div class="card" id="ssimCard" style="display:none"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">SSIM file</h2><div class="row"><button id="ssimCopy">Copy</button><button id="ssimLoad" class="primary">Load as proposed schedule</button><button id="ssimClose">Close</button></div></div>
+      <textarea id="ssimText" spellcheck="false" style="min-height:220px;white-space:pre;overflow:auto"></textarea>
+      <p class="hint">IATA SSIM record type 3 (flight legs), simplified: header 1/2, legs, trailer 5. Paste a file here or choose one, then load it. Aircraft types map to planning fleets by their IATA code (fleet table). Times are converted from station local time to the schedule time reference.</p></div>
+    <div class="kpis" id="schedKpis"></div>
+    <div class="card" id="schedWarnCard"><h2>Checks</h2><div id="schedWarn" class="note"></div></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Proposed schedule</h2>
+        <div class="row"><input id="flFilter" type="text" placeholder="Filter: flight, station or fleet" style="width:240px"><label class="row note"><input type="checkbox" id="flChanged" style="width:auto"> Changed only</label></div></div>
+      <div class="scroll"><table id="flTbl"></table></div>
+      <p class="hint">Days: 1 = Monday … 7 = Sunday, e.g. <code>1357</code>. Block as H:MM. Arrival is calculated (+1 = next day). Highlighted rows differ from the baseline.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Aircraft rotations</h2>
+        <div class="row"><select id="rotDay" style="width:auto"><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option><option value="7">Sun</option></select>
+        <select id="rotWhich" style="width:auto"><option value="prop">Proposed</option><option value="base">Baseline</option></select></div></div>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Unchanged flight</span><span><i style="background:var(--series-2)"></i>Changed or new flight</span></div>
+      <div id="rotCharts"></div>
+      <p class="hint">Each row is one aircraft for the day, built by chaining flights at the same station with at least the fleet's minimum turnaround. More rows than aircraft available means the day cannot be flown as scheduled.</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Change list</h2><div class="scroll"><table id="chgTbl"></table></div></div>
+      <div class="card"><h2>Route impact</h2><div class="scroll"><table id="rtImpact"></table></div>
+        <p class="hint">Weekly contribution from the planning economics at the schedule's round trips and main fleet. Time-of-day effects are not modelled.</p></div>
+    </div>
+    <div class="card"><h2>Hub connections</h2><div class="scroll"><table id="connTbl"></table></div>
+      <p class="hint">Connection = arrival into a hub and a departure to another city on the same day within the min–max connect time. Rows marked RM are connecting O&amp;Ds sold in the RM network; losing them means RM keeps selling an itinerary that cannot be flown.</p></div>
+  </section>
+
+  <!-- ============ PRICING: SETUP ============ -->
+  <section class="view" id="v-price-setup">
+    <div class="card">
+      <h2>Fare setup</h2>
+      <p class="note" style="margin-top:-4px">Base fare for each sector (market) and RBD, plus surcharges and promotions that raise or lower it, then the taxes that apply to the sector. Price = base fare + surcharges − promotions (= net fare, the airline's revenue used by RM) + taxes. Tax and fee amounts in the demo are <b>samples</b>: replace them with your actual tax table.</p>
+      <div class="fields">
+        <label class="f">Pricing date (validity check)<input data-pr="date" type="date"></label>
+        <label class="f">&nbsp;<button class="primary" id="goPrice">View price list →</button></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Fare ladder generator</h2>
+      <div class="fields">
+        <label class="f">Market (ORG-DST)<input id="lgMarket" type="text" placeholder="RUH-KWI"></label>
+        <label class="f">Highest-class base fare<input id="lgTop" type="number" min="0" step="10" placeholder="1600"></label>
+        <label class="f">RBD : share of top fare<input id="lgLadder" type="text" value="Y:1, M:0.66, K:0.47, V:0.33, E:0.2"></label>
+        <label class="f">Round to<input id="lgRound" type="number" min="1" step="1" value="10"></label>
+        <label class="f">&nbsp;<button id="lgGo">Create or replace ladder</button></label>
+      </div>
+      <div class="msg" id="lgMsg"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Base fares</h2>
+        <div class="row"><input id="fareFilter" type="text" placeholder="Filter market or RBD" style="width:200px"><button id="addFare">+ Add fare</button><button id="resetPricing">Reset pricing example</button></div></div>
+      <div class="scroll tall"><table id="fareIn"></table></div>
+      <p class="hint">List RBDs from highest to lowest within a market; the price list warns about ladder inversions. Fare basis is optional (defaults to RBD + OW).</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Surcharges &amp; promotions</h2><button id="addAdj">+ Add rule</button></div>
+      <div class="scroll"><table id="adjIn"></table></div>
+      <p class="hint">Markets: <code>ALL</code>, exact (<code>RUH-JED</code>), wildcards (<code>*-CAI</code>, <code>RUH-*</code>) or a comma list. RBDs: <code>ALL</code> or a list such as <code>V,E</code>. Percent applies to the base fare. Dates are optional; a rule applies when the pricing date is inside its validity and it is active.</p>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fare families &amp; fare rules</h2><button id="addFam">+ Add family</button></div>
+      <div class="scroll"><table id="famIn"></table></div>
+      <p class="hint">Each RBD belongs to the first family whose list contains it. Advance purchase (days before departure), refundability and change fee are shown with every fare in the price list.</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>Passenger types</h2>
+        <div class="fields"><label class="f">Child discount % (on net fare)<input data-prx="chd_pct" type="number" min="0" max="100" step="1"></label>
+          <label class="f">Infant discount % (on net fare)<input data-prx="inf_pct" type="number" min="0" max="100" step="1"></label></div>
+        <p class="hint">Children pay all taxes; infants pay only the taxes marked "applies to infants".</p></div>
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Currencies</h2><button id="addCur">+ Add currency</button></div>
+        <div class="scroll"><table id="curIn"></table></div>
+        <p class="hint">Rate = units of the currency per 1 unit of the base currency. Used to display the price list; enter your own rates.</p></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Taxes &amp; fees</h2><button id="addTax">+ Add tax</button></div>
+        <div class="scroll"><table id="taxIn"></table></div>
+        <p class="hint">Scope: <b>departure</b> / <b>arrival</b> = sectors leaving / arriving at the stations or countries listed (blank = everywhere); <b>domestic</b> = both ends in the country listed; <b>international</b> = leaving the listed station/country for another country. Percent taxes apply to the net fare.</p>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Stations</h2><button id="addStn">+ Add station</button></div>
+        <div class="scroll"><table id="stnIn"></table></div>
+        <p class="hint">Country code per station, used by country-based taxes and the domestic/international test.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRICING: PRICE LIST ============ -->
+  <section class="view" id="v-price-list">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div class="note" id="priceMeta"></div>
+      <div class="row"><button class="primary" id="applyRm" title="Copy net fares into the RM network's O&amp;D products (matched by market and RBD)">Apply net fares to RM</button><button id="copyPrice">Copy price list CSV</button><span class="msg" id="priceMsg"></span></div>
+    </div>
+    <div class="kpis" id="priceKpis"></div>
+    <div class="card" id="priceWarnCard"><h2>Checks</h2><div id="priceWarn" class="note"></div></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fare ladder</h2><select id="priceMarket" style="width:auto"></select></div>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Net fare</span><span><i style="background:var(--series-2)"></i>Taxes &amp; fees</span></div>
+      <div class="chart" id="chLadder" style="max-width:720px"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Price list</h2><div class="row"><select id="priceCur" style="width:auto"></select><input id="priceFilter" type="text" placeholder="Filter market or RBD" style="width:200px"></div></div>
+      <div class="scroll tall"><table id="priceTbl"></table></div>
+      <p class="hint">Hover a surcharge or promotion amount to see which rules applied.</p>
+    </div>
+  </section>
+
+  <!-- ============ OPS: AIRCRAFT ROTATIONS ============ -->
+  <section class="view" id="v-ops-tails">
+    <div class="card">
+      <h2>Aircraft rotations (tail assignment)</h2>
+      <p class="note" style="margin-top:-4px">Assigns each day's rotations to named aircraft across the week. An aircraft starts the week at its base and must start each rotation where its previous one ended; maintenance days take it out of service; flying is balanced across the fleet. Override any assignment by hand; overrides are kept and flagged if the aircraft would need a ferry.</p>
+      <div class="fields">
+        <label class="f">Schedule<select data-op="source"><option value="prop">Proposed schedule</option><option value="base">Baseline schedule</option></select></label>
+        <label class="f">Day<select data-op="day"><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option><option value="7">Sun</option></select></label>
+        <label class="f">&nbsp;<button id="clearOv">Clear manual overrides</button></label>
+      </div>
+    </div>
+    <div class="kpis" id="tailKpis"></div>
+    <div class="card"><h2>Checks</h2><div id="tailWarn" class="note"></div></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Fleet register</h2><button id="addTail">+ Add aircraft</button></div>
+      <div class="scroll"><table id="tailIn"></table></div>
+      <p class="hint">Maintenance days: days the aircraft is out of service for checks, e.g. <code>2</code> = Tuesday. Base = where it starts the week (its overnight base).</p>
+    </div>
+    <div class="card"><h2>Weekly assignment</h2><div class="scroll"><table id="tailWeek"></table></div>
+      <p class="hint">Each cell shows the aircraft's rotation that day: start → end station, flights, block hours. MX = maintenance.</p></div>
+    <div class="card">
+      <h2 id="tailDayTitle">Day view</h2>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>Flight</span><span><i style="background:var(--series-2)"></i>Manually assigned</span></div>
+      <div id="tailGantt"></div>
+      <h3>Assignments this day</h3>
+      <div class="scroll"><table id="tailDay"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ OPS: CREW ============ -->
+  <section class="view" id="v-ops-crew">
+    <div class="card">
+      <h2>Crew pairing &amp; roster</h2>
+      <p class="note" style="margin-top:-4px">Builds crew duties from the aircraft rotations, then rosters named crew for the week. These are configurable planning rules for scenario work, not a certified implementation of GACA or any other authority's flight-time limitations; validate against your approved rules before operational use.</p>
+      <div class="fields">
+        <label class="f">Crew bases<input data-cr="crew_bases" type="text" placeholder="RUH,JED,DMM"></label>
+        <label class="f">Report before departure (min)<input data-rule="report" type="number" min="0" step="5"></label>
+        <label class="f">Post-flight duty (min)<input data-rule="post" type="number" min="0" step="5"></label>
+        <label class="f">Max FDP, 1–2 sectors (h)<input data-rule="fdp_base" type="number" min="0" step="0.5"></label>
+        <label class="f">FDP reduction per extra sector (h)<input data-rule="fdp_step" type="number" min="0" step="0.25"></label>
+        <label class="f">Minimum max FDP (h)<input data-rule="fdp_min" type="number" min="0" step="0.5"></label>
+        <label class="f">Min rest between duties (h)<input data-rule="rest" type="number" min="0" step="0.5"></label>
+        <label class="f">Max duty hours / 7 days<input data-rule="max_duty_7d" type="number" min="0" step="1"></label>
+        <label class="f">Max block hours / 7 days<input data-rule="max_block_7d" type="number" min="0" step="1"></label>
+        <label class="f">Max consecutive duty days<input data-rule="max_consec" type="number" min="1" step="1"></label>
+        <label class="f">Min days off / week<input data-rule="min_off" type="number" min="0" max="6" step="1"></label>
+        <label class="f">Standby / reserve crew %<input data-rule="reserve_pct" type="number" min="0" step="1"></label>
+      </div>
+      <p class="hint">Max flight duty period (FDP) = max for 1–2 sectors − reduction × (sectors − 2), never below the minimum. Rest before a duty is at least the minimum rest or the length of the previous duty, whichever is longer. Duties are split where the aircraft returns to the crew's home base.</p>
+    </div>
+    <div class="kpis" id="crewKpis"></div>
+    <div class="card"><h2>Checks</h2><div id="crewWarn" class="note"></div></div>
+    <div class="grid2">
+      <div class="card"><h2>Crew complement per fleet</h2><div class="scroll"><table id="crewCompIn"></table></div></div>
+      <div class="card"><h2>Crew requirement vs available</h2><div class="scroll"><table id="crewReq"></table></div>
+        <p class="hint">Needed = the largest of: duty days ÷ working days per week, duty hours ÷ weekly cap, block hours ÷ weekly cap, and the busiest day. Reserve and standby crew are not included.</p></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Crew pool</h2><button id="addPool">+ Add row</button></div>
+        <div class="scroll"><table id="poolIn"></table></div>
+        <p class="hint">Fleet = type qualification, or <code>ALL</code> for crew who can operate every fleet (typical for cabin crew). Crew IDs are generated as BASE-FLEET-RANKnn.</p></div>
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Leave &amp; unavailability</h2><button id="addLeave">+ Add row</button></div>
+        <div class="scroll"><table id="leaveIn"></table></div>
+        <p class="hint">Crew ID and the days they are unavailable, e.g. <code>RUH-ALL-CC05</code> · <code>1234567</code>.</p></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Crew duties (pairings)</h2>
+        <select id="dutyDay" style="width:auto"><option value="">All days</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option><option value="7">Sun</option></select></div>
+      <div class="scroll tall"><table id="dutyTbl"></table></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Weekly roster</h2>
+        <div class="row"><select id="rosBase" style="width:auto"></select><select id="rosRank" style="width:auto"><option value="">All ranks</option><option value="CPT">Captains</option><option value="FO">First officers</option><option value="CC">Cabin crew</option></select>
+        <button id="copyRoster">Copy roster CSV</button><span class="msg" id="rosMsg"></span></div></div>
+      <div class="scroll tall"><table id="rosTbl"></table></div>
+      <p class="hint">Cells show the duty (route and report time). OFF = day off, LV = leave. Crew are chosen by fewest duty hours so far, so the workload is spread evenly.</p>
+    </div>
+  </section>
+
+  <!-- ============ BENCHMARK ============ -->
+  <section class="view" id="v-benchmark">
+    <div class="card">
+      <h2>Capability benchmark</h2>
+      <p class="note" style="margin-top:-4px">From what each vendor publishes about its RM product. Vendors do not publish algorithms, so the vendor columns describe stated capabilities, not verified internals. Network planning tools are a separate product category and are not compared here.</p>
+      <div class="scroll"><table class="bm" id="bmTbl"></table></div>
+    </div>
+    <div class="card">
+      <h2>How to benchmark against your RMS on real flights</h2>
+      <ol class="note">
+        <li>Pick a network slice (3–6 legs through one hub) and one departure per leg.</li>
+        <li>Export each O&amp;D-class's net fare, bookings on hand and historical final demand; load them in Data &amp; scenarios.</li>
+        <li>Enter the RMS bid price per leg in "Your RMS bid price"; the Bid prices tab shows the gap.</li>
+        <li>Compare open/closed decisions per O&amp;D-class with the RMS availability display, especially connections on tight legs.</li>
+        <li>Repeat at 60, 30, 14 and 7 days out to see whether gaps come from forecasting or optimisation.</li>
+      </ol>
+    </div>
+    <div class="card"><h2>Sources</h2><ul class="note">
+      <li><a href="https://amadeus.com/en/portfolio/airlines/network-revenue-management" target="_blank" rel="noopener">Amadeus Network Revenue Management</a></li>
+      <li><a href="https://www.amadeus.com/en/airlines/products/revenue-availability-active-valuation" target="_blank" rel="noopener">Amadeus Revenue Availability with Active Valuation</a></li>
+      <li><a href="https://appsource.microsoft.com/en-ph/product/saas/proscpq.revenuemanagement" target="_blank" rel="noopener">PROS Revenue Management (AppSource)</a></li>
+      <li><a href="https://s28288.pros.com/de/solutions/airline-revenue-management" target="_blank" rel="noopener">PROS Airline Revenue Management</a></li>
+      <li><a href="https://sabre.com/?p=38873" target="_blank" rel="noopener">SabreMosaic Continuous Revenue Optimizer</a></li>
+      <li><a href="https://investors.sabre.com/node/19371/pdf" target="_blank" rel="noopener">Sabre CRO launch release, Oct 2025</a></li>
+    </ul></div>
+  </section>
+
+  <!-- ============ DATA ============ -->
+  <section class="view" id="v-data">
+    <div class="card" id="govCard" style="display:none">
+      <h2>Access &amp; audit</h2>
+      <div id="govWho" class="note"></div>
+      <div class="scroll tall" style="margin-top:10px"><table id="auditTbl"></table></div>
+    </div>
+    <div class="card">
+      <h2>Scenarios</h2>
+      <div class="row"><input id="scName" type="text" placeholder="Scenario name, e.g. W26 base" style="max-width:320px"><button class="primary" id="scSave">Save current scenario</button><span class="msg" id="scMsg"></span></div>
+      <div class="scroll" style="margin-top:10px"><table id="scTbl"></table></div>
+      <p class="hint" id="scHint"></p>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>RM legs CSV</h2><textarea id="legCsv" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-load="legs">Load</button><input type="file" data-file="legCsv" accept=".csv,.txt" style="width:auto"></div>
+        <p class="hint"><code>leg,capacity,distance,rms_bid_price,noshow_pct</code></p></div>
+      <div class="card"><h2>RM products CSV</h2><textarea id="prodCsv" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-load="prods">Load</button><input type="file" data-file="prodCsv" accept=".csv,.txt" style="width:auto"></div>
+        <p class="hint"><code>od,path,rbd,fare,hist_final,booked,curve,closed_dtd</code></p></div>
+      <div class="card"><h2>Fleets CSV</h2><textarea id="fleetCsv" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-load="fleets">Load</button><input type="file" data-file="fleetCsv" accept=".csv,.txt" style="width:auto"></div>
+        <p class="hint"><code>type,seats,count,util_h_day,cost_per_bh,fee_per_dep,turn_min,iata</code></p></div>
+      <div class="card"><h2>Routes CSV</h2><textarea id="routeCsv" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-load="routes">Load</button><input type="file" data-file="routeCsv" accept=".csv,.txt" style="width:auto"></div>
+        <p class="hint"><code>route,block_h,demand_wk_dir,net_fare,cur_freq,cur_fleet,min_freq,max_freq,fleets,dist_km</code> (fleets column: <code>all</code> or names separated by <code>|</code>). Trailing columns are optional; missing values keep the current setting.</p></div>
+      <div class="card" style="grid-column:1/-1"><h2>Schedule CSV (loads as both baseline and proposed)</h2><textarea id="schedCsv" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" data-load="sched">Load</button><input type="file" data-file="schedCsv" accept=".csv,.txt" style="width:auto"></div>
+        <p class="hint"><code>flight,from,to,dep_hhmm,block_hmm,days,fleet,status</code> e.g. <code>ZZ101,RUH,JED,05:30,1:54,1234567,A320neo,active</code></p></div>
+    </div>
+    <div class="msg" id="csvMsg"></div>
+    <div class="card">
+      <h2>Booking curves (cumulative % of final demand booked, by days to departure)</h2>
+      <div class="scroll"><table id="curveTbl"></table></div>
+    </div>
+    <div class="card" id="srvCard">
+      <h2>Server connection</h2>
+      <div class="fields">
+        <label class="f">API base URL<input id="apiBase" type="text" placeholder="same origin"></label>
+        <label class="f">Airline / tenant ID<input id="apiTenant" type="text" placeholder="demo"></label>
+        <label class="f">API token<input id="apiToken" type="password" placeholder="if the server requires one"></label>
+        <label class="f">&nbsp;<button id="apiSave">Connect</button></label>
+      </div>
+      <p class="hint">When the app is served by its own backend, it connects automatically and uses the exact HiGHS solver. Without a server it runs fully in the browser.</p>
+    </div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+</div>
+<script src="demo-data.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
