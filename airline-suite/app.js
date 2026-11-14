@@ -991,6 +991,7 @@ const RULE_COLS=[{h:'Active',k:'active',l:1,opts:['yes','no']},{h:'Name',k:'name
 function renderInvInputs(){
   document.querySelectorAll('[data-inv]').forEach(el=>{el.value=ST.inv[el.dataset.inv]??'';el.oninput=el.onchange=()=>{ST.inv[el.dataset.inv]=el.value;save();schedInv();};});
   editTable('ruleIn',ST.inv.rules,RULE_COLS,renderInvInputs,schedInv);
+  nrPreview();
 }
 const INV_F=['invFSector','invFDtd','invFD0','invFD1','invFDow','invFT0','invFT1','invFMode','invOnlyModel'];
 INV_F.forEach(id=>{const el=$(id);el.oninput=el.onchange=()=>lastInv&&renderInv(lastInv);
@@ -1003,14 +1004,41 @@ $('invNow').onclick=()=>{const t=localToday();ST.inv.today=t;ST.inv.start=t;save
 $('nrFromFilter').onclick=()=>{$('nrSectors').value=$('invFSector').value;$('nrDow').value=$('invFDow').value;$('nrT0').value=$('invFT0').value;$('nrT1').value=$('invFT1').value;
   $('nrFrom').value=$('invFD0').value||ST.inv.start||'';$('nrTo').value=$('invFD1').value||(ST.inv.start?addDaysUI(ST.inv.start,num(ST.inv.days,14)-1):'');
   const dr=dtdRange($('invFDtd').value),t0=ST.inv.today||ST.inv.start;   // a D-range filter becomes the matching dates
-  if(dr&&t0){const a=addDaysUI(t0,dr[0]),b=addDaysUI(t0,dr[1]);if(a>$('nrFrom').value)$('nrFrom').value=a;if(!$('nrTo').value||b<$('nrTo').value)$('nrTo').value=b;}};
+  if(dr&&t0){const a=addDaysUI(t0,dr[0]),b=addDaysUI(t0,dr[1]);if(a>$('nrFrom').value)$('nrFrom').value=a;if(!$('nrTo').value||b<$('nrTo').value)$('nrTo').value=b;}
+  nrPreview();};
 const addDaysUI=(ds,k)=>{const d=new Date(ds+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10);};
+const NR_IDS=['nrSectors','nrFlights','nrFrom','nrTo','nrDow','nrT0','nrT1','nrMode','nrClose','nrOpen','nrAu','nrCabin','nrLimits','nrBpPct','nrBpFix','nrName','nrOwner','nrExpires','nrNote'];
+function nrDraft(){const v=id=>$(id).value.trim(),mode=$('nrMode').value;
+  return {active:'yes',name:v('nrName')||`${mode==='manual'?'Manual':'Adjusted'} ${v('nrSectors')||v('nrFlights')}`,mode,sectors:v('nrSectors').toUpperCase()||'ALL',flights:v('nrFlights').toUpperCase(),
+    from:v('nrFrom'),to:v('nrTo'),dow:v('nrDow'),time_from:v('nrT0'),time_to:v('nrT1'),close:v('nrClose').toUpperCase(),open:v('nrOpen').toUpperCase(),limits:v('nrLimits').toUpperCase(),au:v('nrAu').toUpperCase(),cabin_au:v('nrCabin'),
+    bp_pct:mode==='adjust'?v('nrBpPct'):'',bp_fixed:mode==='adjust'?v('nrBpFix'):'',owner:v('nrOwner'),expires:v('nrExpires'),note:v('nrNote')};}
+function nrModeUi(){const adj=$('nrMode').value==='adjust';
+  document.querySelectorAll('.nr-bp').forEach(l=>{l.classList.toggle('off',!adj);l.querySelector('input').disabled=!adj;l.title=adj?'':'Only used in Adjusted mode';});
+  $('nrModeHint').textContent=adj?'The system keeps optimising every flight-date. A bid price change moves which classes open (+30% closes more low fares); close/open classes, AUs and seat limits still apply on top.'
+    :'System optimisation stops for these flight-dates. Classes you close, open or give an AU or seat limit follow your settings; every other class is held at the current system value. Bid price changes do not apply.';}
+// live preview: which flight-dates the rule would take over, before it is created
+let nrT=null;
+function nrPreview(){const v=id=>$(id).value.trim(),el=$('nrPreview');
+  if(!v('nrSectors')&&!v('nrFlights')){el.innerHTML='Enter at least a sector or a flight number to see which flight-dates this rule would cover.';return;}
+  const d=nrDraft(),R=E.inventoryRun(ST.rm,ST.sched.prop,{...ST.inv,rules:[d,...ST.inv.rules]}),hit=R.rows.filter(r=>r.rule===0);
+  if(!hit.length){el.innerHTML=`<b style="color:var(--critical)">No flight-dates match</b> in the horizon (${esc(ST.inv.start||'')}, ${num(ST.inv.days,14)} days). Check the sector, dates, days of week and times${d.expires&&ST.inv.today&&ST.inv.today>d.expires?', and the expiry date: it is already past':''}.`;return;}
+  const prev={};(lastInv?lastInv.rows:[]).forEach(r=>prev[r.date+'|'+r.id]=r);
+  const took=hit.filter(r=>{const p=prev[r.date+'|'+r.id];return p&&p.rule!=null;}).length,chg=hit.filter(r=>{const p=prev[r.date+'|'+r.id];return p&&p.avs!==r.avs;}).length;
+  const dates=hit.map(r=>r.date).sort(),secs=[...new Set(hit.map(r=>r.sector))],fl=[...new Set(hit.map(r=>r.fn))];
+  const ex=hit.find(r=>{const p=prev[r.date+'|'+r.id];return p&&p.avs!==r.avs;})||hit.find(r=>r.has_system)||hit[0];
+  el.innerHTML=`Would apply to <b>${hit.length} flight-date${hit.length>1?'s':''}</b>: ${esc(secs.slice(0,4).join(', '))}${secs.length>4?` +${secs.length-4} more`:''} · ${fl.length} flight${fl.length>1?'s':''} · ${esc(dates[0])}${dates[0]!==dates[dates.length-1]?' to '+esc(dates[dates.length-1]):''}.`+
+    ` Availability changes on <b>${chg}</b>${took?` · ${took} currently follow another rule, which this one overrides (it goes to the top)`:''}.`+
+    (ex?` <span class="note">Example ${esc(ex.fn)} ${esc(ex.date)}: <code>${esc((prev[ex.date+'|'+ex.id]||{}).avs||'')}</code> → <code>${esc(ex.avs)}</code></span>`:'')+
+    (hit.some(r=>!r.has_system)?' <span class="note">Some have no RM model, so only your settings apply there.</span>':'');}
+const nrLater=()=>{clearTimeout(nrT);nrT=setTimeout(nrPreview,150);};
+NR_IDS.forEach(id=>{const el=$(id);el.addEventListener('input',nrLater);el.addEventListener('change',nrLater);});
+$('nrMode').addEventListener('change',nrModeUi);nrModeUi();
+$('nrReset').onclick=()=>{NR_IDS.forEach(id=>{if(id!=='nrMode')$(id).value='';});$('nrMode').value='manual';nrModeUi();nrPreview();};
 $('nrCreate').onclick=()=>{const v=id=>$(id).value.trim();
   if(!v('nrSectors')&&!v('nrFlights')){$('nrMsg').textContent='Give at least a sector pattern or a flight number.';return;}
-  const r={active:'yes',name:v('nrName')||`${$('nrMode').value==='manual'?'Manual':'Adjusted'} ${v('nrSectors')||v('nrFlights')}`,mode:$('nrMode').value,sectors:v('nrSectors').toUpperCase()||'ALL',flights:v('nrFlights').toUpperCase(),
-    from:v('nrFrom'),to:v('nrTo'),dow:v('nrDow'),time_from:v('nrT0'),time_to:v('nrT1'),close:v('nrClose').toUpperCase(),open:v('nrOpen').toUpperCase(),limits:v('nrLimits').toUpperCase(),au:v('nrAu').toUpperCase(),cabin_au:v('nrCabin'),
-    bp_pct:v('nrBpPct'),bp_fixed:v('nrBpFix'),owner:v('nrOwner'),expires:v('nrExpires'),note:v('nrNote')};
-  ST.inv.rules.unshift(r);save();renderInvInputs();schedInv();$('nrMsg').textContent=`Rule "${r.name}" created at the top of the list.`;setTimeout(()=>$('nrMsg').textContent='',4000);};
+  const r=nrDraft();ST.inv.rules.unshift(r);save();renderInvInputs();schedInv();
+  $('nrMsg').textContent=`Rule "${r.name}" created at the top of the list. Ctrl+Z undoes it.`;setTimeout(()=>$('nrMsg').textContent='',4000);
+  NR_IDS.forEach(id=>{if(id!=='nrMode')$(id).value='';});nrModeUi();nrPreview();};
 // days to departure from Today (D0); shown as D0, D1, D2 …
 const dtdOf=ds=>Math.round((Date.parse(ds+'T00:00:00Z')-Date.parse(String(ST.inv.today||ST.inv.start||ds)+'T00:00:00Z'))/864e5);
 const dtdTxt=d=>d<0?'Departed':'D'+d;

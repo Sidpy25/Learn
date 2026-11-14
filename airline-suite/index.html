@@ -259,28 +259,42 @@
     <div class="kpis" id="invKpis"></div>
     <div class="card">
       <h2>Take control of flights</h2>
-      <div class="fields">
-        <label class="f">Rule name<input id="nrName" type="text" placeholder="e.g. Hajj return peak"></label>
-        <label class="f">Mode<select id="nrMode"><option value="manual">Manual (system optimisation off)</option><option value="adjust">Adjusted (system on, analyst influence)</option></select></label>
-        <label class="f">Sectors<input id="nrSectors" type="text" placeholder="RUH-JED, *-CAI or ALL"></label>
-        <label class="f">Flight numbers<input id="nrFlights" type="text" placeholder="blank = any"></label>
-        <label class="f">From date<input id="nrFrom" type="date"></label>
-        <label class="f">To date<input id="nrTo" type="date"></label>
-        <label class="f">Days of week<input id="nrDow" type="text" placeholder="e.g. 567 (blank = all)"></label>
-        <label class="f">Departure from<input id="nrT0" type="time"></label>
-        <label class="f">Departure to<input id="nrT1" type="time"></label>
-        <label class="f">Close classes<input id="nrClose" type="text" placeholder="V,E"></label>
-        <label class="f">Open classes<input id="nrOpen" type="text" placeholder="K"></label>
-        <label class="f">Class AUs (nested)<input id="nrAu" type="text" placeholder="Y:180, M:150, K:120"></label>
-        <label class="f">Cabin AU<input id="nrCabin" type="number" min="0" step="1" placeholder="e.g. 180"></label>
-        <label class="f">Seat limits<input id="nrLimits" type="text" placeholder="K:10, V:5"></label>
-        <label class="f">Bid price change %<input id="nrBpPct" type="number" step="1" placeholder="adjusted mode"></label>
-        <label class="f">Bid price change amount<input id="nrBpFix" type="number" step="10" placeholder="adjusted mode"></label>
-        <label class="f">Owner<input id="nrOwner" type="text"></label>
-        <label class="f">Expires<input id="nrExpires" type="date"></label>
-      </div>
-      <label class="f" style="margin-top:10px">Reason / note<input id="nrNote" type="text"></label>
-      <div class="row" style="margin-top:10px"><button class="primary" id="nrCreate">Create rule (top priority)</button><button id="nrFromFilter">Use current filters</button><span class="msg" id="nrMsg"></span></div>
+      <p class="note" style="margin-top:-4px">Create one rule for a group of flights and dates. To change a single flight on a single day, use <b>Open</b> on that row in the Flight-dates list instead. Leave any field blank to mean "any" or "no change".</p>
+      <div class="nr-step"><h3><span class="step">1</span>Which flights</h3>
+        <div class="fields">
+          <label class="f">Sectors<input id="nrSectors" type="text" placeholder="RUH-JED, *-CAI or ALL"></label>
+          <label class="f">Flight numbers<input id="nrFlights" type="text" placeholder="blank = any"></label>
+          <label class="f">From date<input id="nrFrom" type="date"></label>
+          <label class="f">To date<input id="nrTo" type="date"></label>
+          <label class="f">Days of week<input id="nrDow" type="text" placeholder="e.g. 567 (blank = all)"></label>
+          <label class="f">Departure from<input id="nrT0" type="time"></label>
+          <label class="f">Departure to<input id="nrT1" type="time"></label>
+          <label class="f">&nbsp;<button id="nrFromFilter" title="Copy the filters from Show flight-dates above">Use current filters</button></label>
+        </div></div>
+      <div class="nr-step"><h3><span class="step">2</span>How to control them</h3>
+        <div class="fields">
+          <label class="f" style="grid-column:span 2">Mode<select id="nrMode"><option value="manual">Manual: system optimisation off, your settings decide</option><option value="adjust">Adjusted: system keeps optimising, you influence it</option></select></label>
+        </div>
+        <p class="hint" id="nrModeHint" style="margin-top:6px"></p></div>
+      <div class="nr-step"><h3><span class="step">3</span>What to change</h3>
+        <div class="fields">
+          <label class="f">Close classes<input id="nrClose" type="text" placeholder="V,E"></label>
+          <label class="f">Open classes<input id="nrOpen" type="text" placeholder="K"></label>
+          <label class="f">Class AUs (nested)<input id="nrAu" type="text" placeholder="Y:180, M:150, K:120"></label>
+          <label class="f">Cabin AU<input id="nrCabin" type="number" min="0" step="1" placeholder="e.g. 180"></label>
+          <label class="f">Seat limits (one class)<input id="nrLimits" type="text" placeholder="K:10, V:5"></label>
+          <label class="f nr-bp">Bid price change %<input id="nrBpPct" type="number" step="1" placeholder="e.g. 30"></label>
+          <label class="f nr-bp">Bid price change amount<input id="nrBpFix" type="number" step="10" placeholder="e.g. 100"></label>
+        </div></div>
+      <div class="nr-step"><h3><span class="step">4</span>Owner &amp; expiry</h3>
+        <div class="fields">
+          <label class="f">Rule name<input id="nrName" type="text" placeholder="e.g. Hajj return peak"></label>
+          <label class="f">Owner<input id="nrOwner" type="text" placeholder="who set it"></label>
+          <label class="f">Expires<input id="nrExpires" type="date"></label>
+          <label class="f" style="grid-column:span 2">Reason / note<input id="nrNote" type="text" placeholder="why this override is needed"></label>
+        </div></div>
+      <p class="note nr-preview" id="nrPreview"></p>
+      <div class="row" style="margin-top:10px"><button class="primary" id="nrCreate">Create rule (top priority)</button><button id="nrReset">Clear form</button><span class="msg" id="nrMsg"></span></div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Control rules</h2><span class="note">First matching active rule wins</span></div>
